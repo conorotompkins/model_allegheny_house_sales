@@ -41,3 +41,7 @@ vignettes/*.pdf
 
 # big data files
 data/big
+
+#mac files
+.DS_Store
+
