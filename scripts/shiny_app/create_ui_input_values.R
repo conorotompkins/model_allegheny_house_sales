@@ -3,6 +3,7 @@ library(tigris)
 library(sf)
 
 assessments <- read_csv("data/clean_assessment_data.csv")
+parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
 assessments %>% 
   count(school_desc, sort = T) %>% 
@@ -102,4 +103,40 @@ tigris::area_water("PA", "Allegheny") %>%
 # st_read("data/ui_input_values/allegheny_water.shp") %>% 
 #   ggplot() +
 #   geom_sf()
+
+#create school district shapefiles
+keystone_oaks_geo <- assessments %>% 
+  filter(school_desc == "Keystone Oaks") %>% 
+  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
+  distinct(school_desc, muni_desc, longitude, latitude) %>% 
+  drop_na(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  group_by(school_desc, muni_desc) %>% 
+  summarize(geometry = st_combine(geometry)) %>%
+  ungroup() %>% 
+  st_convex_hull() %>% 
+  group_by(school_desc) %>%
+  summarize() %>% 
+  ungroup()
+
+everything_else_geo <- assessments %>% 
+  filter(school_desc != "Keystone Oaks") %>% 
+  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
+  distinct(school_desc, longitude, latitude) %>% 
+  drop_na(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  group_by(school_desc) %>% 
+  summarize(geometry = st_combine(geometry)) %>%
+  ungroup() %>% 
+  st_convex_hull() %>% 
+  group_by(school_desc) %>%
+  summarize() %>% 
+  ungroup()
+
+school_district_shapes <- everything_else_geo %>%
+  bind_rows(keystone_oaks_geo) %>% 
+  st_difference()
+
+school_district_shapes %>% 
+  st_write("data/ui_input_values/school_district_shapes/school_district_shapes.shp")
 
