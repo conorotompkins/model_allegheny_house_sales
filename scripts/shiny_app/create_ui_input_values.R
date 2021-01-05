@@ -34,8 +34,8 @@ assessments %>%
                                                     "Excellent",
                                                     "Very Good",
                                                     "Good",
-                                                    "Fair",
                                                     "Average",
+                                                    "Fair",
                                                     "Poor",
                                                     "Very Poor",
                                                     "Unsound"))) %>% 
@@ -137,6 +137,9 @@ school_district_shapes <- everything_else_geo %>%
   bind_rows(keystone_oaks_geo) %>% 
   st_difference()
 
+list.files("data/ui_input_values/school_district_shapes/", full.names = TRUE) %>% 
+  set_names() %>% 
+  map(file.remove)
+  
 school_district_shapes %>% 
   st_write("data/ui_input_values/school_district_shapes/school_district_shapes.shp")
-
