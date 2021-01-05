@@ -38,3 +38,5 @@ year_blt_max <- read_csv("data/ui_input_values/year_blt_max.csv")
 #mapping
 ac_boundary <- st_read("data/ui_input_values/allegheny_county.shp")
 ac_water <- st_read("data/ui_input_values/allegheny_water.shp")
+school_district_shapes <- st_read("data/ui_input_values/school_district_shapes/school_district_shapes.shp") %>% 
+  rename(school_desc = schl_ds)
