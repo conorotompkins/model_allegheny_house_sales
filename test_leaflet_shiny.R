@@ -10,6 +10,18 @@ source("scripts/shiny_app/read_ui_input_values.R")
 assessments <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
+school_district_shapes <- school_district_shapes %>% 
+  mutate(center = map(geometry, st_centroid),
+         lng = map_dbl(center, 1),
+         lat = map_dbl(center, 2)) %>% 
+  select(-center)
+
+glimpse(school_district_shapes)
+
+school_district_shapes %>% 
+  ggplot(aes(lng, lat)) +
+  geom_point()
+
 #shiny app
 ui <- fluidPage(
   
@@ -77,8 +89,13 @@ server <- function(input, output, session) {
         
         #filter and map
         leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == selected_school_desc_click())) %>%
-          clearGroup("highight_shape") %>% 
-          addPolygons(group = "highight_shape")
+          clearGroup("highlight_shape") %>% 
+          clearGroup("popup") %>% 
+          addPolygons(group = "highlight_shape") %>% 
+          addPopups(popup = ~school_desc,
+                     group = "popup",
+                     lng = ~lng,
+                     lat = ~lat)
         
         #create output to show which school district was clicked on
         output$selected_school_desc_click_text <- renderText(str_c("Highlighted:", selected_school_desc_click()))
