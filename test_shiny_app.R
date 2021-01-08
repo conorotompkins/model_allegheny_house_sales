@@ -76,18 +76,11 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      value = 1948,
                                      sep = ""),
                          verbatimTextOutput("txtout")
-                  ),
-                  #),
-                  #mainPanel( # mainPanel
+                  ), #column 1
                   column(9, # column 2
-                         tabPanel("Histogram",
-                                  #h1("Header 1"),
-                                  #h4("Output 1"),
-                                  #add map here
                                   plotOutput("school_desc_map"),
                                   plotOutput("model_output_graph"),
                                   tableOutput("model_output_table")
-                                  )
                          ) #column 2
                   )  # fluidRow
                 ) # fluidPage
@@ -190,7 +183,7 @@ server <- function(input, output) {
       #          label = "Prediction range", color = "yellow", size = 5) +
       scale_x_continuous(labels = scales::dollar_format()) +
       scale_y_comma() +
-      coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.5)) +
+      coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.4)) +
       labs(title = str_c(nrow(representative_sample_reactive()) %>% comma(), "sales of",
                          distinct(representative_sample_reactive())$style_desc, "homes in",
                          distinct(representative_sample_reactive())$school_desc,
