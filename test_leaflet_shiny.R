@@ -70,23 +70,6 @@ server <- function(input, output, session) {
       
     }
     
-    # output$mouse_click_output <- renderText({
-    #   
-    #   geo_click_table <- tibble(school_desc = click_data$id,
-    #                             lng = click_data$lng,
-    #                             lat = click_data$lat)
-    #   
-    #   click_text <- glue::glue_data(.x = geo_click_table, 
-    #                                 "School District: {school_desc}\n Longitude: {lng}\n Latitude: {lat}")
-    # })
-    
-    #selected_school_desc <- reactive({input$school_desc_choice})
-    
-    
-    
-    # 
-    # output$selected_school_desc_text <- renderText(selected_school_desc())
-    
     observe({ #observer_2
       
       if (length(selected_school_desc()) == 0)
