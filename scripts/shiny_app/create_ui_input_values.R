@@ -1,6 +1,7 @@
 library(tidyverse)
 library(tigris)
 library(sf)
+library(concaveman)
 
 assessments <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
@@ -103,43 +104,92 @@ tigris::area_water("PA", "Allegheny") %>%
 # st_read("data/ui_input_values/allegheny_water.shp") %>% 
 #   ggplot() +
 #   geom_sf()
+# 
+# #create school district shapefiles
+# keystone_oaks_geo <- assessments %>% 
+#   filter(school_desc == "Keystone Oaks") %>% 
+#   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
+#   distinct(school_desc, muni_desc, longitude, latitude) %>% 
+#   drop_na(longitude, latitude) %>% 
+#   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+#   group_by(school_desc, muni_desc) %>% 
+#   summarize(geometry = st_combine(geometry)) %>%
+#   ungroup() %>% 
+#   st_convex_hull() %>% 
+#   group_by(school_desc) %>%
+#   summarize() %>% 
+#   ungroup()
+# 
+# everything_else_geo <- assessments %>% 
+#   filter(school_desc != "Keystone Oaks") %>% 
+#   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
+#   distinct(school_desc, longitude, latitude) %>% 
+#   drop_na(longitude, latitude) %>% 
+#   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+#   group_by(school_desc) %>% 
+#   summarize(geometry = st_combine(geometry)) %>%
+#   ungroup() %>% 
+#   st_convex_hull() %>% 
+#   group_by(school_desc) %>%
+#   summarize() %>% 
+#   ungroup()
+# 
+# school_district_shapes <- everything_else_geo %>%
+#   bind_rows(keystone_oaks_geo) %>% 
+#   st_difference()
+# 
+# list.files("data/ui_input_values/school_district_shapes/", full.names = TRUE) %>% 
+#   set_names() %>% 
+#   map(file.remove)
+#   
+# school_district_shapes %>% 
+#   st_write("data/ui_input_values/school_district_shapes/school_district_shapes.shp")
 
-#create school district shapefiles
+
+#updated shapefiles
+
+list.files("data/ui_input_values/school_district_shapes/", full.names = TRUE) %>%
+  set_names() %>%
+  map(file.remove)
+
 keystone_oaks_geo <- assessments %>% 
   filter(school_desc == "Keystone Oaks") %>% 
   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
   distinct(school_desc, muni_desc, longitude, latitude) %>% 
   drop_na(longitude, latitude) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  group_by(school_desc, muni_desc) %>% 
-  summarize(geometry = st_combine(geometry)) %>%
-  ungroup() %>% 
-  st_convex_hull() %>% 
-  group_by(school_desc) %>%
-  summarize() %>% 
-  ungroup()
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
 
 everything_else_geo <- assessments %>% 
   filter(school_desc != "Keystone Oaks") %>% 
   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
   distinct(school_desc, longitude, latitude) %>% 
   drop_na(longitude, latitude) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  group_by(school_desc) %>% 
-  summarize(geometry = st_combine(geometry)) %>%
-  ungroup() %>% 
-  st_convex_hull() %>% 
-  group_by(school_desc) %>%
-  summarize() %>% 
-  ungroup()
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
 
-school_district_shapes <- everything_else_geo %>%
-  bind_rows(keystone_oaks_geo) %>% 
+everything_else_shapes <- everything_else_geo %>% 
+  group_by(school_desc) %>% 
+  nest() %>% 
+  mutate(hulls = map(data, concaveman, concavity = 3)) %>%
+  unnest(cols = c(hulls)) %>% 
+  ungroup() %>% 
+  select(-data) %>% 
+  st_as_sf() %>% 
   st_difference()
 
-list.files("data/ui_input_values/school_district_shapes/", full.names = TRUE) %>% 
-  set_names() %>% 
-  map(file.remove)
-  
+keystone_oaks_shapes <- keystone_oaks_geo %>% 
+  group_by(school_desc, muni_desc) %>% 
+  nest() %>% 
+  mutate(hulls = map(data, concaveman, concavity = 3)) %>%
+  unnest(cols = c(hulls)) %>% 
+  ungroup() %>% 
+  st_as_sf() %>% 
+  summarize(school_desc = unique(school_desc))
+
+school_district_shapes <- everything_else_shapes %>% 
+  #st_difference(keystone_oaks_shapes) %>% 
+  bind_rows(keystone_oaks_shapes) %>% 
+  st_difference()
+
 school_district_shapes %>% 
   st_write("data/ui_input_values/school_district_shapes/school_district_shapes.shp")
+
