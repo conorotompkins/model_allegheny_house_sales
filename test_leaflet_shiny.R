@@ -33,9 +33,8 @@ ui <- fluidPage(
   
   leafletOutput("school_district_map"),
   verbatimTextOutput("mouse_click_output"),
-  verbatimTextOutput("selected_school_desc_click_text"),
-  verbatimTextOutput("school_desc_choice"),
-  tableOutput("table_test")
+  verbatimTextOutput("selected_school_desc_text"),
+  verbatimTextOutput("school_desc_choice")
 )
 
 server <- function(input, output, session) {
@@ -62,7 +61,14 @@ server <- function(input, output, session) {
     #capture click from leaflet map
     click_data <- input$school_district_map_shape_click
     if(is.null(click_data))
-      return()
+      
+      selected_school_desc <- reactive({input$school_desc_choice})
+    
+    else{
+      
+      selected_school_desc <- reactive({click_data$id})
+      
+    }
     
     # output$mouse_click_output <- renderText({
     #   
@@ -75,7 +81,7 @@ server <- function(input, output, session) {
     # })
     
     #selected_school_desc <- reactive({input$school_desc_choice})
-    selected_school_desc_click <- reactive({click_data$id})
+    
     
     
     # 
@@ -83,12 +89,12 @@ server <- function(input, output, session) {
     
     observe({ #observer_2
       
-      if (length(selected_school_desc_click()) == 0)
+      if (length(selected_school_desc()) == 0)
         return()
       else {
         
         #filter and map
-        leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == selected_school_desc_click())) %>%
+        leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == selected_school_desc())) %>%
           clearGroup("highlight_shape") %>% 
           clearGroup("popup") %>% 
           addPolygons(group = "highlight_shape") %>% 
@@ -98,7 +104,7 @@ server <- function(input, output, session) {
                      lat = ~lat)
         
         #create output to show which school district was clicked on
-        output$selected_school_desc_click_text <- renderText(str_c("Highlighted:", selected_school_desc_click()))
+        output$selected_school_desc_text <- renderText(str_c("Highlighted:", selected_school_desc()))
         
       }
     }) #observer_2
