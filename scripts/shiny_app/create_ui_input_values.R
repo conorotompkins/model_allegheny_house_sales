@@ -188,7 +188,11 @@ keystone_oaks_shapes <- keystone_oaks_geo %>%
 school_district_shapes <- everything_else_shapes %>% 
   #st_difference(keystone_oaks_shapes) %>% 
   bind_rows(keystone_oaks_shapes) %>% 
-  st_difference()
+  st_difference() %>% 
+  mutate(center = map(polygons, st_centroid),
+         lng = map_dbl(center, 1),
+         lat = map_dbl(center, 2)) %>% 
+  select(-center)
 
 school_district_shapes %>% 
   st_write("data/ui_input_values/school_district_shapes/school_district_shapes.shp")
