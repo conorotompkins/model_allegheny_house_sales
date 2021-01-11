@@ -30,10 +30,6 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      choices = pull(school_desc_distinct, school_desc),
                                      multiple = FALSE,
                                      selectize = TRUE),
-                         # selectizeInput(inputId = "school_desc_choice",
-                         #                label = "School district",
-                         #                choices = pull(school_desc_distinct, school_desc),
-                         #                multiple = FALSE),
                          selectInput(inputId = "style_desc_choice", 
                                      label = "Style",
                                      choices = pull(style_desc_distinct, style_desc),
@@ -147,16 +143,12 @@ server <- function(input, output) {
          str_c("Finished living area:", comma(input$finished_living_area_choice), sep = " "),
          str_c("Total rooms:", input$total_rooms_choice, sep = " "),
          str_c("Year built:", input$year_blt_choice, sep = " ")) %>% 
-      #discard(is.na(.)) %>% 
       glue::glue_collapse(sep = "\n")
-    #str_c(input$txt1, input$txt2, input$style_desc_choice, sep = ", ")
   })
   
   output$model_output_table <- renderTable({
     
     predictions_reactive() %>% 
-      #bind_cols(prediction, prediction_range) %>% 
-      #mutate(across(.cols = everything(), dollar(.))) %>% 
       mutate(.pred = dollar(.pred),
              .pred_upper = dollar(.pred_upper),
              .pred_lower = dollar(.pred_lower)) %>% 
@@ -172,15 +164,9 @@ server <- function(input, output) {
     representative_sample_reactive() %>%
       ggplot(aes(x = sale_price_adj)) +
       geom_histogram(fill = "grey", color = "black") +
-      #geom_vline(xintercept = predictions_reactive()$.pred) +
-      # geom_rect(data = predictions_reactive(),
-      #           aes(xmin = .pred_lower, xmax = .pred_upper,
-      #               ymin = 0, ymax = Inf), fill = "rd", alpha = .5) +
       annotate(geom = "rect",
                xmin = predictions_reactive()$.pred_lower, xmax = predictions_reactive()$.pred_upper,
                ymin = 0, ymax = Inf, fill = "#FCCF02", alpha = .7) +
-      # annotate(geom = "text", x = predictions_reactive()$.pred_upper + 10^4, y = plot_parameters_reactive(),
-      #          label = "Prediction range", color = "yellow", size = 5) +
       scale_x_continuous(labels = scales::dollar_format()) +
       scale_y_comma() +
       coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.4)) +
@@ -202,12 +188,6 @@ server <- function(input, output) {
       #full_results %>% 
       school_district_shapes %>% 
         semi_join(predict_data_reactive(), by = "school_desc") %>% 
-        # drop_na(longitude, latitude) %>% 
-        # st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-        # group_by(school_desc) %>% 
-        # summarize(geometry = st_combine(geometry)) %>%
-        # ungroup() %>% 
-        # st_convex_hull() %>% 
         ggplot() +
           geom_sf(data = ac_boundary, fill = "black") +
           geom_sf(data = ac_water, fill = "white") +
