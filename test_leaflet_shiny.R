@@ -10,17 +10,13 @@ source("scripts/shiny_app/read_ui_input_values.R")
 assessments <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
-school_district_shapes <- school_district_shapes %>% 
-  mutate(center = map(geometry, st_centroid),
-         lng = map_dbl(center, 1),
-         lat = map_dbl(center, 2)) %>% 
-  select(-center)
+# school_district_shapes <- school_district_shapes %>% 
+#   mutate(center = map(geometry, st_centroid),
+#          lng = map_dbl(center, 1),
+#          lat = map_dbl(center, 2)) %>% 
+#   select(-center)
 
 glimpse(school_district_shapes)
-
-school_district_shapes %>% 
-  ggplot(aes(lng, lat)) +
-  geom_point()
 
 #shiny app
 ui <- fluidPage(
@@ -32,7 +28,7 @@ ui <- fluidPage(
               selectize = TRUE),
   
   leafletOutput("school_district_map"),
-  verbatimTextOutput("mouse_click_output"),
+  #verbatimTextOutput("mouse_click_output"),
   verbatimTextOutput("selected_school_desc_text"),
   verbatimTextOutput("school_desc_choice")
 )
@@ -55,25 +51,20 @@ server <- function(input, output, session) {
                   weight = 1)
   })
   
-  
-  observe({ #observer_1
-    
+  #observer
+  observe({
     #capture click from leaflet map
     click_data <- input$school_district_map_shape_click
-    if(is.null(click_data))
-      
-      selected_school_desc <- reactive({input$school_desc_choice})
     
-    else{
+    if (is.null(click_data))
+      return()
+    else {
       
       selected_school_desc <- reactive({click_data$id})
       
-    }
-    
-    observe({ #observer_2
-      
       if (length(selected_school_desc()) == 0)
         return()
+      
       else {
         
         #filter and map
@@ -82,17 +73,16 @@ server <- function(input, output, session) {
           clearGroup("popup") %>% 
           addPolygons(group = "highlight_shape") %>% 
           addPopups(popup = ~school_desc,
-                     group = "popup",
-                     lng = ~lng,
-                     lat = ~lat)
+                    group = "popup",
+                    lng = ~lng,
+                    lat = ~lat)
         
         #create output to show which school district was clicked on
         output$selected_school_desc_text <- renderText(str_c("Highlighted:", selected_school_desc()))
         
       }
-    }) #observer_2
-    
-  }) #observer_1
+    }
+  }) #observer
   
 }
 
