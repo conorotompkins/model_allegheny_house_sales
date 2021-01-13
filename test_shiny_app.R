@@ -224,10 +224,13 @@ server <- function(input, output) {
   selected_school_desc <- reactive({input$school_district_map_shape_click$id})
   
   observe({ #observer
-    if (length(selected_school_desc()) == 0)
-      return()
     
-    else {
+    req(selected_school_desc())
+    
+    # if (length(selected_school_desc()) == 0)
+    #   return()
+    # 
+    # else {
       
       #filter and map
       leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == input$school_district_map_shape_click$id)) %>%
@@ -238,7 +241,7 @@ server <- function(input, output) {
                   group = "popup",
                   lng = ~lng,
                   lat = ~lat)
-    }
+    #}
   }) #observer
   
 }
