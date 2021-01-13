@@ -56,10 +56,8 @@ server <- function(input, output, session) {
   output$reactive_text <- renderText(str_c("reactive: ", selected_school_desc()))
   
   observe({ #observer
-    if (length(selected_school_desc()) == 0)
-      return()
     
-    else {
+    req(selected_school_desc())
       
       #filter and map
       leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == input$school_district_map_shape_click$id)) %>%
@@ -70,7 +68,7 @@ server <- function(input, output, session) {
                   group = "popup",
                   lng = ~lng,
                   lat = ~lat)
-    }
+      
   }) #observer
   
   #create output to show which school district was clicked on
