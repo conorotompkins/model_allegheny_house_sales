@@ -21,6 +21,7 @@ ui <- fluidPage(
               multiple = FALSE,
               selectize = TRUE),
   
+  textOutput("leaflet_title"),
   leafletOutput("school_district_map"),
   verbatimTextOutput("selected_school_desc_text"),
   verbatimTextOutput("school_desc_choice"),
@@ -28,6 +29,8 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  
+  output$leaflet_title <- renderText("Click to select school district")
   
   output$school_desc_choice <- renderText(str_c("Selected: ", input$school_desc_choice))
   
@@ -37,9 +40,9 @@ server <- function(input, output, session) {
       leaflet("school_district_map") %>% 
       addProviderTiles(providers$Stamen.TonerLite,
                        options = providerTileOptions(noWrap = TRUE,
-                                                    minZoom = 9, 
-                                                    #maxZoom = 8
-                                                    )) %>% 
+                                                     minZoom = 9, 
+                                                     #maxZoom = 8
+                       )) %>% 
       setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 9) %>% 
       setMaxBounds(lng1 = -79.5, lng2 = -80.5, lat1 = 40.1, lat2 = 40.7) %>% 
       addPolygons(layerId = ~school_desc,
@@ -58,17 +61,17 @@ server <- function(input, output, session) {
   observe({ #observer
     
     req(selected_school_desc())
-      
-      #filter and map
-      leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == input$school_district_map_shape_click$id)) %>%
-        clearGroup("highlight_shape") %>% 
-        clearGroup("popup") %>% 
-        addPolygons(group = "highlight_shape") %>% 
-        addPopups(popup = ~school_desc,
-                  group = "popup",
-                  lng = ~lng,
-                  lat = ~lat)
-      
+    
+    #filter and map
+    leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == input$school_district_map_shape_click$id)) %>%
+      clearGroup("highlight_shape") %>% 
+      clearGroup("popup") %>% 
+      addPolygons(group = "highlight_shape") %>% 
+      addPopups(popup = ~school_desc,
+                group = "popup",
+                lng = ~lng,
+                lat = ~lat)
+    
   }) #observer
   
   #create output to show which school district was clicked on
