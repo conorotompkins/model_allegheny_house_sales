@@ -94,7 +94,32 @@ sales_wflow <- workflow() %>%
 
 sales_wflow
 
-#fit against training data
+#resample
+folds_train <- vfold_cv(train_data, v = 10)
+
+keep_pred <- control_resamples(save_pred = TRUE)
+
+#fit against resampled training data
+lm_res <- sales_wflow %>%
+  fit_resamples(resamples = folds_train,
+                control = keep_pred)
+
+collect_predictions(lm_res) %>% 
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_point(alpha = .05, size = .3) +
+  geom_abline() +
+  coord_obs_pred()
+
+collect_metrics(lm_res)
+
+lm_res %>% 
+  select(.metrics) %>% 
+  unnest(cols = c(.metrics)) %>% 
+  ggplot(aes(.estimate)) +
+  geom_histogram() +
+  facet_wrap(~.metric, ncol = 1, scales = "free")
+
+#fit against entire training data set
 sales_fit <- sales_wflow %>%
   fit(data = train_data)
 
