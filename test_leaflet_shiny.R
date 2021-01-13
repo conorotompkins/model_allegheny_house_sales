@@ -29,14 +29,19 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  output$school_desc_choice <- renderText(str_c("Selected:", input$school_desc_choice))
+  output$school_desc_choice <- renderText(str_c("Selected: ", input$school_desc_choice))
   
   output$school_district_map <- renderLeaflet({
     
     school_district_shapes %>%
       leaflet("school_district_map") %>% 
       addProviderTiles(providers$Stamen.TonerLite,
-                       options = providerTileOptions(noWrap = TRUE)) %>% 
+                       options = providerTileOptions(noWrap = TRUE,
+                                                    minZoom = 9, 
+                                                    #maxZoom = 8
+                                                    )) %>% 
+      setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 9) %>% 
+      setMaxBounds(lng1 = -79.5, lng2 = -80.5, lat1 = 40.1, lat2 = 40.7) %>% 
       addPolygons(layerId = ~school_desc,
                   fillColor = "#FCCF02",
                   fillOpacity = .7,
@@ -69,7 +74,7 @@ server <- function(input, output, session) {
   }) #observer
   
   #create output to show which school district was clicked on
-  output$selected_school_desc_text <- renderText(str_c("Highlighted:", input$school_district_map_shape_click$id))
+  output$selected_school_desc_text <- renderText(str_c("Highlighted: ", input$school_district_map_shape_click$id))
   
 }
 
