@@ -8,6 +8,7 @@ library(tidymodels)
 library(usemodels)
 library(hrbrthemes)
 library(scales)
+library(leaflet)
 
 #https://towardsdatascience.com/build-your-first-shiny-web-app-in-r-72f9538f9868
 #https://shiny.rstudio.com/tutorial/
@@ -25,11 +26,11 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   #tabPanel("Inputs", # sidebarPanel
                   column(3, #column 1
                          
-                         selectInput(inputId = "school_desc_choice",
-                                     label = "School district",
-                                     choices = pull(school_desc_distinct, school_desc),
-                                     multiple = FALSE,
-                                     selectize = TRUE),
+                         # selectInput(inputId = "school_desc_choice",
+                         #             label = "School district",
+                         #             choices = pull(school_desc_distinct, school_desc),
+                         #             multiple = FALSE,
+                         #             selectize = TRUE),
                          selectInput(inputId = "style_desc_choice", 
                                      label = "Style",
                                      choices = pull(style_desc_distinct, style_desc),
@@ -74,12 +75,13 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                          verbatimTextOutput("txtout")
                   ), #column 1
                   column(9, # column 2
-                                  plotOutput("school_desc_map"),
-                                  plotOutput("model_output_graph"),
-                                  tableOutput("model_output_table")
-                         ) #column 2
-                  )  # fluidRow
-                ) # fluidPage
+                         #plotOutput("school_desc_map"),
+                         leafletOutput("school_district_map"),
+                         plotOutput("model_output_graph"),
+                         tableOutput("model_output_table")
+                  ) #column 2
+                )  # fluidRow
+) # fluidPage
 
 
 # Define server function  
@@ -92,7 +94,7 @@ server <- function(input, output) {
            lot_area = input$lot_area_choice,
            finished_living_area = input$finished_living_area_choice,
            total_rooms = input$total_rooms_choice,
-           school_desc = input$school_desc_choice,
+           school_desc = selected_school_desc(),
            style_desc = input$style_desc_choice,
            grade_desc = input$grade_desc_choice,
            condition_desc = input$condition_desc_choice,
@@ -135,7 +137,7 @@ server <- function(input, output) {
   })
   
   output$txtout <- renderText({
-    list(str_c("School district:", input$school_desc_choice, sep = " "), 
+    list(str_c("School district:", selected_school_desc(), sep = " "), 
          str_c("Grade:", input$grade_desc_choice, sep = " "), 
          str_c("Condition:", input$condition_desc_choice, sep = " "),
          str_c("Style:", input$style_desc_choice, sep = " "),
@@ -183,19 +185,58 @@ server <- function(input, output) {
     
   })
   
-    output$school_desc_map <- renderPlot({
-
-      #full_results %>% 
-      school_district_shapes %>% 
-        semi_join(predict_data_reactive(), by = "school_desc") %>% 
-        ggplot() +
-          geom_sf(data = ac_boundary, fill = "black") +
-          geom_sf(data = ac_water, fill = "white") +
-          geom_sf(fill = "#FCCF02", color = "#FCCF02", alpha = .7, size = NA) +
-          theme_void()
-
+  # output$school_desc_map <- renderPlot({
+  #   
+  #   #full_results %>% 
+  #   school_district_shapes %>% 
+  #     semi_join(predict_data_reactive(), by = "school_desc") %>% 
+  #     ggplot() +
+  #     geom_sf(data = ac_boundary, fill = "black") +
+  #     geom_sf(data = ac_water, fill = "white") +
+  #     geom_sf(fill = "#FCCF02", color = "#FCCF02", alpha = .7, size = NA) +
+  #     theme_void()
+  #   
+  # })
+  
+  output$school_district_map <- renderLeaflet({
+    
+    school_district_shapes %>%
+      leaflet("school_district_map") %>% 
+      addProviderTiles(providers$Stamen.TonerLite,
+                       options = providerTileOptions(noWrap = TRUE,
+                                                     minZoom = 9, 
+                                                     #maxZoom = 8
+                       )) %>% 
+      setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 9) %>% 
+      setMaxBounds(lng1 = -79.5, lng2 = -80.5, lat1 = 40.1, lat2 = 40.7) %>% 
+      addPolygons(layerId = ~school_desc,
+                  fillColor = "#FCCF02",
+                  fillOpacity = .7,
+                  stroke = TRUE,
+                  color = "black",
+                  weight = 1)
   })
   
+  #capture click from leaflet map
+  selected_school_desc <- reactive({input$school_district_map_shape_click$id})
+  
+  observe({ #observer
+    if (length(selected_school_desc()) == 0)
+      return()
+    
+    else {
+      
+      #filter and map
+      leafletProxy("school_district_map", data = filter(school_district_shapes, school_desc == input$school_district_map_shape_click$id)) %>%
+        clearGroup("highlight_shape") %>% 
+        clearGroup("popup") %>% 
+        addPolygons(group = "highlight_shape") %>% 
+        addPopups(popup = ~school_desc,
+                  group = "popup",
+                  lng = ~lng,
+                  lat = ~lat)
+    }
+  }) #observer
   
 }
 
