@@ -89,6 +89,9 @@ server <- function(input, output) {
   
   #create data to predict on
   predict_data_reactive <- reactive({
+    
+    req(selected_school_desc())
+    
     tibble(par_id = "test",
            house_age_at_sale = 2020 - input$year_blt_choice,
            lot_area = input$lot_area_choice,
