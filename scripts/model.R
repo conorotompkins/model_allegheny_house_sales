@@ -88,11 +88,11 @@ lm_mod <- linear_reg() %>%
   set_engine("lm")
 
 #create workflow
-sales_wflow <- workflow() %>% 
+lm_wflow <- workflow() %>% 
   add_model(lm_mod) %>% 
   add_recipe(model_recipe)
 
-sales_wflow
+lm_wflow
 
 #resample
 folds_train <- vfold_cv(train_data, v = 10)
@@ -100,7 +100,7 @@ folds_train <- vfold_cv(train_data, v = 10)
 keep_pred <- control_resamples(save_pred = TRUE)
 
 #fit against resampled training data
-lm_res <- sales_wflow %>%
+lm_res <- lm_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
@@ -120,17 +120,19 @@ lm_res %>%
   facet_wrap(~.metric, ncol = 1, scales = "free")
 
 #fit against entire training data set
-sales_fit <- sales_wflow %>%
+lm_fit <- lm_wflow %>%
   fit(data = train_data)
 
-write_rds(sales_fit, "data/model_fit.rds")
+write_rds(lm_fit, "data/model_fit.rds")
 
-sales_fit %>% 
+lobstr::obj_size(lm_fit)
+
+lm_fit %>% 
   pull_workflow_fit() %>% 
   tidy() %>% 
   write_csv("data/model_coefficients.csv")
 
-sales_fit %>% 
+lm_fit %>% 
   pull_workflow_fit() %>% 
   tidy() %>% 
   filter(term == "(Intercept)") %>% 
@@ -138,7 +140,7 @@ sales_fit %>%
   pull(avg_price) %>% 
   scales::dollar()
 
-sales_fit %>%
+lm_fit %>%
   pull_workflow_fit() %>%
   tidy() %>%
   filter(term != "(Intercept)") %>%
@@ -152,7 +154,7 @@ model_recipe %>%
   glimpse()
 
 #predict against test data
-sales_fit %>%
+lm_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>%
   ggplot(aes(log10(sale_price_adj), .pred)) +
@@ -161,16 +163,16 @@ sales_fit %>%
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6))
 
-test_res <- sales_fit %>% 
+lm_test_res <- lm_fit %>% 
   predict(test_data) %>% 
   bind_cols(test_data) %>% 
   mutate(.pred_dollar = 10^.pred)
 
 model_metrics <- metric_set(rmse, rsq, mape)
-model_metrics(test_res, truth = sale_price_adj, estimate = .pred_dollar)
+model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 #eda results
-estimate_chart <- sales_fit %>%
+estimate_chart <- lm_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>%
   group_by(school_desc) %>%
@@ -182,11 +184,11 @@ estimate_chart <- sales_fit %>%
 estimate_chart %>% 
   ggsave(filename = "output/estimate_chart.png", height = 12)
 
-full_results <- sales_fit %>% 
+full_results <- lm_fit %>% 
   predict(housing_sales) %>% 
   bind_cols(housing_sales)
 
-full_results_conf_int <- sales_fit %>% 
+full_results_conf_int <- lm_fit %>% 
   predict(housing_sales, type = "conf_int") %>% 
   bind_cols(housing_sales %>% select(par_id))
 
