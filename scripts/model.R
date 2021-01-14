@@ -1,6 +1,7 @@
 library(tidyverse)
 library(tidymodels)
 library(usemodels)
+library(vip)
 library(hrbrthemes)
 
 options(scipen = 999)
@@ -83,23 +84,38 @@ model_recipe_prep <- model_recipe %>%
 #   juice() %>% 
 #   glimpse()
 
-#specify model
+#specify lm model
 lm_mod <- linear_reg() %>% 
   set_engine("lm")
 
-#create workflow
+#create lm workflow
 lm_wflow <- workflow() %>% 
   add_model(lm_mod) %>% 
   add_recipe(model_recipe)
 
 lm_wflow
 
+#specify rf model
+cores <- parallel::detectCores()
+cores
+
+rf_mod <- rand_forest() %>% 
+  set_engine("ranger", num.threads = cores, importance = "impurity") %>% 
+  set_mode("regression")
+
+#create lm workflow
+rf_wflow <- workflow() %>% 
+  add_model(rf_mod) %>% 
+  add_recipe(model_recipe)
+
+rf_wflow
+
 #resample
 folds_train <- vfold_cv(train_data, v = 10)
 
 keep_pred <- control_resamples(save_pred = TRUE)
 
-#fit against resampled training data
+#fit lm against resampled training data
 lm_res <- lm_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
@@ -110,7 +126,31 @@ collect_predictions(lm_res) %>%
   geom_abline() +
   coord_obs_pred()
 
+#fit rf against resampled training data
+rf_res <- rf_wflow %>%
+  fit_resamples(resamples = folds_train,
+                control = keep_pred)
+
+collect_predictions(rf_res) %>% 
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_point(alpha = .05, size = .3) +
+  geom_abline() +
+  coord_obs_pred()
+
+collect_predictions(lm_res) %>% 
+  mutate(model = "lm") %>% 
+  bind_rows(collect_predictions(rf_res) %>% 
+              mutate(model = "rf")) %>% 
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_density_2d_filled() +
+  #coord_obs_pred() +
+  geom_abline(color = "white", lty = 2) +
+  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
+  facet_wrap(~model, ncol = 1)
+
+
 collect_metrics(lm_res)
+collect_metrics(rf_res)
 
 lm_res %>% 
   select(.metrics) %>% 
@@ -122,10 +162,15 @@ lm_res %>%
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
   fit(data = train_data)
-
-write_rds(lm_fit, "data/model_fit.rds")
-
 lobstr::obj_size(lm_fit)
+
+rf_fit <- rf_wflow %>%
+  fit(data = train_data)
+lobstr::obj_size(rf_fit)
+
+write_rds(lm_fit, "data/lm_model_fit.rds")
+
+write_rds(rf_fit, "data/rf_model_fit.rds")
 
 lm_fit %>% 
   pull_workflow_fit() %>% 
@@ -140,6 +185,9 @@ lm_fit %>%
   pull(avg_price) %>% 
   scales::dollar()
 
+rf_fit %>% 
+  pull_workflow_fit()
+
 lm_fit %>%
   pull_workflow_fit() %>%
   tidy() %>%
@@ -148,12 +196,19 @@ lm_fit %>%
   ggplot(aes(estimate, term)) +
   geom_point()
 
+rf_fit %>% 
+  pull_workflow_fit() %>% 
+  vip::vi() %>% 
+  mutate(Variable = fct_reorder(Variable, Importance)) %>% 
+  ggplot(aes(Importance, Variable)) +
+  geom_point()
+
 model_recipe %>%
   prep() %>%
   bake(test_data) %>%
   glimpse()
 
-#predict against test data
+#predict lm against test data
 lm_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>%
@@ -171,29 +226,69 @@ lm_test_res <- lm_fit %>%
 model_metrics <- metric_set(rmse, rsq, mape)
 model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
-#eda results
-estimate_chart <- lm_fit %>%
+#predict rf against test data
+rf_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>%
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_density_2d_filled() +
+  #coord_obs_pred() +
+  geom_abline(color = "white", lty = 2) +
+  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6))
+
+rf_test_res <- rf_fit %>% 
+  predict(test_data) %>% 
+  bind_cols(test_data) %>% 
+  mutate(.pred_dollar = 10^.pred)
+
+model_metrics <- metric_set(rmse, rsq, mape)
+model_metrics(rf_test_res, truth = sale_price_adj, estimate = .pred_dollar)
+
+#eda results
+rmse_chart <- lm_fit %>%
+  predict(train_data) %>%
+  bind_cols(train_data) %>%
   group_by(school_desc) %>%
   rmse(log10(sale_price_adj), .pred) %>%
   mutate(school_desc = fct_reorder(school_desc, .estimate)) %>%
   ggplot(aes(.estimate, school_desc)) +
   geom_point()
 
-estimate_chart %>% 
-  ggsave(filename = "output/estimate_chart.png", height = 12)
+rmse_chart %>% 
+  ggsave(filename = "output/rmse_chart.png", height = 12)
 
-full_results <- lm_fit %>% 
+lm_term_coefficient_chart <- lm_fit %>%
+  pull_workflow_fit() %>%
+  tidy() %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term_type = case_when(str_detect(term, "^school_desc_") ~ "school_desc",
+                               str_detect(term, "^grade_desc_") ~ "grade_desc",
+                               str_detect(term, "^condition_desc_") ~ "condition_desc",
+                               str_detect(term, "^style_desc_") ~ "style_desc",
+                               TRUE ~ "other")) %>% 
+  add_count(term_type, name = "term_type_count") %>% 
+  mutate(term = str_remove(term, term_type)) %>% 
+  mutate(term_type = fct_reorder(term_type, term_type_count)) %>% 
+  mutate(term = tidytext::reorder_within(term, estimate, term_type)) %>%
+  ggplot(aes(estimate, term)) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_point() +
+  facet_wrap(~term_type, scales = "free", nrow = 3) +
+  tidytext::scale_y_reordered()
+
+lm_term_coefficient_chart %>% 
+  ggsave(filename = "output/lm_term_coefficient_chart.png", height = 18, width = 12)
+
+lm_full_results <- lm_fit %>% 
   predict(housing_sales) %>% 
   bind_cols(housing_sales)
 
-full_results_conf_int <- lm_fit %>% 
+lm_full_results_conf_int <- lm_fit %>% 
   predict(housing_sales, type = "conf_int") %>% 
   bind_cols(housing_sales %>% select(par_id))
 
-full_results <- full_results %>% 
-  left_join(full_results_conf_int) %>% 
+lm_full_results <- lm_full_results %>% 
+  left_join(lm_full_results_conf_int) %>% 
   mutate(.pred_dollar = 10^.pred,
          .pred_upper_dollar = 10^.pred_upper,
          .pred_lower_dollar = 10^.pred_lower,
@@ -201,8 +296,8 @@ full_results <- full_results %>%
          .resid_dollar = sale_price_adj - .pred_dollar) %>% 
   select(par_id, starts_with("sale_price"), starts_with(".pred"), starts_with(".resid"), everything())
 
-full_results %>% 
+lm_full_results %>% 
   left_join(assessments_valid %>% 
               select(par_id, sale_year)) %>%
   select(everything(), longitude, latitude) %>% 
-  write_csv("output/full_model_results.csv")
+  write_csv("output/lm_full_model_results.csv")
