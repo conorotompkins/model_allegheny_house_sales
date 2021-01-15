@@ -128,6 +128,7 @@ rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
+#
 collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
@@ -155,10 +156,13 @@ lm_fit <- lm_wflow %>%
   fit(data = train_data)
 lobstr::obj_size(lm_fit)
 
+
+rf_fit <- read_rds("data/rf_model_fit.rds")
 rf_fit <- rf_wflow %>%
   fit(data = train_data)
 lobstr::obj_size(rf_fit)
 
+#save model objects
 write_rds(lm_fit, "data/lm_model_fit.rds")
 
 write_rds(rf_fit, "data/rf_model_fit.rds")
