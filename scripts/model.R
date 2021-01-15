@@ -100,7 +100,10 @@ cores <- parallel::detectCores()
 cores
 
 rf_mod <- rand_forest() %>% 
-  set_engine("ranger", num.threads = cores, importance = "impurity") %>% 
+  set_engine("ranger",
+             num.threads = cores,
+             importance = "impurity",
+             keep.inbag = TRUE) %>% 
   set_mode("regression")
 
 #create lm workflow
@@ -120,22 +123,10 @@ lm_res <- lm_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
-collect_predictions(lm_res) %>% 
-  ggplot(aes(log10(sale_price_adj), .pred)) +
-  geom_point(alpha = .05, size = .3) +
-  geom_abline() +
-  coord_obs_pred()
-
 #fit rf against resampled training data
 rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
-
-collect_predictions(rf_res) %>% 
-  ggplot(aes(log10(sale_price_adj), .pred)) +
-  geom_point(alpha = .05, size = .3) +
-  geom_abline() +
-  coord_obs_pred()
 
 collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
@@ -175,7 +166,7 @@ write_rds(rf_fit, "data/rf_model_fit.rds")
 lm_fit %>% 
   pull_workflow_fit() %>% 
   tidy() %>% 
-  write_csv("data/model_coefficients.csv")
+  write_csv("data/lm_model_coefficients.csv")
 
 lm_fit %>% 
   pull_workflow_fit() %>% 
