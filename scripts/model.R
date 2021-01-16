@@ -3,6 +3,7 @@ library(tidymodels)
 library(usemodels)
 library(vip)
 library(hrbrthemes)
+library(skimr)
 
 options(scipen = 999)
 theme_set(theme_ipsum())
@@ -17,6 +18,8 @@ set.seed(1234)
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
+
+skim(assessments_valid)
 # assessments_valid %>% 
 #   filter(par_id == "0098S00148000000") %>% 
 #   View()
@@ -27,7 +30,7 @@ housing_sales <- assessments_valid %>%
   select(-sale_price) %>% 
   select(everything(), longitude, latitude) %>% 
   select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
-         finished_living_area, total_rooms, school_desc, 
+         finished_living_area, bedrooms, fullbaths, halfbaths, school_desc, 
          style_desc, grade_desc, condition_desc,
          longitude, latitude)
 
@@ -66,9 +69,11 @@ test_data  <- testing(data_split)
 model_recipe <- recipe(sale_price_adj ~ .,
                        data = train_data) %>% 
   update_role(par_id, new_role = "id") %>% 
-  step_log(sale_price_adj, base = 10, skip = TRUE) %>% 
   update_role(longitude, latitude, new_role = "geo") %>% 
-  step_other(style_desc, threshold = .005) %>% 
+  step_log(sale_price_adj, base = 10, skip = TRUE) %>% 
+  step_modeimpute(condition_desc) %>% 
+  step_medianimpute(bedrooms, fullbaths, halfbaths) %>% 
+  step_other(style_desc, threshold = .05, other = "step_other") %>% 
   step_string2factor(school_desc, style_desc, grade_desc, condition_desc) %>%
   step_dummy(school_desc, style_desc, grade_desc, condition_desc)
 
@@ -128,7 +133,7 @@ rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
-#
+#compare predictions against training data across models
 collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
@@ -144,20 +149,13 @@ collect_predictions(lm_res) %>%
 collect_metrics(lm_res)
 collect_metrics(rf_res)
 
-lm_res %>% 
-  select(.metrics) %>% 
-  unnest(cols = c(.metrics)) %>% 
-  ggplot(aes(.estimate)) +
-  geom_histogram() +
-  facet_wrap(~.metric, ncol = 1, scales = "free")
-
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
   fit(data = train_data)
 lobstr::obj_size(lm_fit)
 
 
-rf_fit <- read_rds("data/rf_model_fit.rds")
+#rf_fit <- read_rds("data/rf_model_fit.rds")
 rf_fit <- rf_wflow %>%
   fit(data = train_data)
 lobstr::obj_size(rf_fit)
@@ -203,15 +201,22 @@ model_recipe %>%
   bake(test_data) %>%
   glimpse()
 
-#predict lm against test data
+#compare predictions against training data across models
 lm_fit %>%
   predict(test_data) %>%
-  bind_cols(test_data) %>%
+  bind_cols(test_data) %>% 
+  mutate(model = "lm") %>% 
+  bind_rows(rf_fit %>%
+              predict(test_data) %>%
+              bind_cols(test_data) %>% 
+              mutate(model = "rf") ) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   #coord_obs_pred() +
   geom_abline(color = "white", lty = 2) +
-  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6))
+  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
+  facet_wrap(~model, ncol = 1) +
+  labs(title = "Test Data")
 
 lm_test_res <- lm_fit %>% 
   predict(test_data) %>% 
@@ -219,24 +224,16 @@ lm_test_res <- lm_fit %>%
   mutate(.pred_dollar = 10^.pred)
 
 model_metrics <- metric_set(rmse, rsq, mape)
-model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
+
 
 #predict rf against test data
-rf_fit %>%
-  predict(test_data) %>%
-  bind_cols(test_data) %>%
-  ggplot(aes(log10(sale_price_adj), .pred)) +
-  geom_density_2d_filled() +
-  #coord_obs_pred() +
-  geom_abline(color = "white", lty = 2) +
-  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6))
-
 rf_test_res <- rf_fit %>% 
   predict(test_data) %>% 
   bind_cols(test_data) %>% 
   mutate(.pred_dollar = 10^.pred)
 
-model_metrics <- metric_set(rmse, rsq, mape)
+
+model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 model_metrics(rf_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 #eda results
@@ -274,6 +271,30 @@ lm_term_coefficient_chart <- lm_fit %>%
 lm_term_coefficient_chart %>% 
   ggsave(filename = "output/lm_term_coefficient_chart.png", height = 18, width = 12)
 
+#rf vi chart
+rf_vi_chart <- rf_fit %>%
+  pull_workflow_fit() %>%
+  vi() %>% 
+  rename(term = Variable,
+         importance = Importance) %>% 
+  mutate(term_type = case_when(str_detect(term, "^school_desc_") ~ "school_desc",
+                               str_detect(term, "^grade_desc_") ~ "grade_desc",
+                               str_detect(term, "^condition_desc_") ~ "condition_desc",
+                               str_detect(term, "^style_desc_") ~ "style_desc",
+                               TRUE ~ "other")) %>% 
+  add_count(term_type, name = "term_type_count") %>% 
+  mutate(term = str_remove(term, term_type)) %>% 
+  mutate(term_type = fct_reorder(term_type, term_type_count)) %>% 
+  mutate(term = tidytext::reorder_within(term, importance, term_type)) %>%
+  ggplot(aes(importance, term)) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_point() +
+  facet_wrap(~term_type, scales = "free", nrow = 3) +
+  tidytext::scale_y_reordered()
+
+rf_vi_chart %>% 
+  ggsave(filename = "output/rf_vi_chart.png", height = 18, width = 12)
+
 lm_full_results <- lm_fit %>% 
   predict(housing_sales) %>% 
   bind_cols(housing_sales)
@@ -296,3 +317,4 @@ lm_full_results %>%
               select(par_id, sale_year)) %>%
   select(everything(), longitude, latitude) %>% 
   write_csv("output/lm_full_model_results.csv")
+
