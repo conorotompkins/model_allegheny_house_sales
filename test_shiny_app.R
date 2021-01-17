@@ -60,12 +60,21 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      min = 0,
                                      max = 4000,
                                      value = 2000),
-                         sliderInput(inputId = "total_rooms_choice",
-                                     label = "Total rooms",
-                                     min = pull(total_rooms_min, total_rooms),
-                                     #max = pull(total_rooms_max, total_rooms),
-                                     max = 30,
-                                     value = 6),
+                         sliderInput(inputId = "bedrooms_choice",
+                                     label = "Bedrooms",
+                                     min = 1,
+                                     max = 6,
+                                     value = 1),
+                         sliderInput(inputId = "fullbaths_choice",
+                                     label = "Full bathrooms",
+                                     min = 1,
+                                     max = 4,
+                                     value = 1),
+                         sliderInput(inputId = "halfbaths_choice",
+                                     label = "Half bathrooms",
+                                     min = 0,
+                                     max = 4,
+                                     value = 0),
                          sliderInput(inputId = "year_blt_choice",
                                      label = "Year house was built",
                                      min = pull(year_blt_min, year_blt),
@@ -96,7 +105,9 @@ server <- function(input, output) {
            house_age_at_sale = 2020 - input$year_blt_choice,
            lot_area = input$lot_area_choice,
            finished_living_area = input$finished_living_area_choice,
-           total_rooms = input$total_rooms_choice,
+           bedrooms = input$bedrooms_choice,
+           fullbaths = input$fullbaths_choice,
+           halfbaths = input$halfbaths_choice,
            school_desc = selected_school_desc(),
            style_desc = input$style_desc_choice,
            grade_desc = input$grade_desc_choice,
@@ -146,7 +157,9 @@ server <- function(input, output) {
          str_c("Style:", input$style_desc_choice, sep = " "),
          str_c("Lot area:", comma(input$lot_area_choice), sep = " "),
          str_c("Finished living area:", comma(input$finished_living_area_choice), sep = " "),
-         str_c("Total rooms:", input$total_rooms_choice, sep = " "),
+         str_c("Bedrooms:", input$bedrooms_choice, sep = " "),
+         str_c("Full Bathrooms:", input$fullbaths_choice, sep = " "),
+         str_c("Half Bathrooms:", input$halfbaths_choice, sep = " "),
          str_c("Year built:", input$year_blt_choice, sep = " ")) %>% 
       glue::glue_collapse(sep = "\n")
   })
@@ -172,6 +185,8 @@ server <- function(input, output) {
       annotate(geom = "rect",
                xmin = predictions_reactive()$.pred_lower, xmax = predictions_reactive()$.pred_upper,
                ymin = 0, ymax = Inf, fill = "#FCCF02", alpha = .7) +
+      geom_vline(aes(xintercept = predictions_reactive()$.pred),
+                 color = "#FCCF02") +
       scale_x_continuous(labels = scales::dollar_format()) +
       scale_y_comma() +
       coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.4)) +
