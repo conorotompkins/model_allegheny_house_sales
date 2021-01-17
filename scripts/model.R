@@ -1,9 +1,14 @@
 library(tidyverse)
 library(tidymodels)
+library(baguette)
 library(usemodels)
 library(vip)
 library(hrbrthemes)
 library(skimr)
+library(future)
+library(lobstr)
+
+#plan(strategy = "multisession")
 
 options(scipen = 999)
 theme_set(theme_ipsum())
@@ -118,6 +123,17 @@ rf_wflow <- workflow() %>%
 
 rf_wflow
 
+#specify bagged tree model
+bag_spec <- bag_tree(min_n = 10) %>%
+  set_engine("rpart", 
+             times = 5,
+             control = control_bag(allow_parallel = T)) %>%
+  set_mode("regression")
+
+bag_wf <- workflow() %>%
+  add_model(bag_spec) %>% 
+  add_recipe(model_recipe)
+  
 #resample
 folds_train <- vfold_cv(train_data, v = 10)
 
@@ -133,11 +149,20 @@ rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
+#fit bag against resampled training data
+bag_res <- bag_wf %>%
+  fit_resamples(resamples = folds_train,
+                control = keep_pred)
+
+collect_metrics(bag_res)
+
 #compare predictions against training data across models
 collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
               mutate(model = "rf")) %>% 
+  bind_rows(collect_predictions(bag_res) %>% 
+              mutate(model = "bag")) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   #coord_obs_pred() +
@@ -148,6 +173,7 @@ collect_predictions(lm_res) %>%
 
 collect_metrics(lm_res)
 collect_metrics(rf_res)
+collect_metrics(bag_res)
 
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
@@ -160,10 +186,16 @@ rf_fit <- rf_wflow %>%
   fit(data = train_data)
 lobstr::obj_size(rf_fit)
 
+bag_fit <- bag_wf %>% 
+  fit(data = train_data)
+obj_size(bag_fit)
+
 #save model objects
 write_rds(lm_fit, "data/lm_model_fit.rds")
 
 write_rds(rf_fit, "data/rf_model_fit.rds")
+
+write_rds(bag_fit, "data/bag_model_fit.rds")
 
 lm_fit %>% 
   pull_workflow_fit() %>% 
@@ -196,6 +228,9 @@ rf_fit %>%
   ggplot(aes(Importance, Variable)) +
   geom_point()
 
+bag_fit %>%
+  pull_workflow_fit()
+
 model_recipe %>%
   prep() %>%
   bake(test_data) %>%
@@ -209,7 +244,11 @@ lm_fit %>%
   bind_rows(rf_fit %>%
               predict(test_data) %>%
               bind_cols(test_data) %>% 
-              mutate(model = "rf") ) %>% 
+              mutate(model = "rf")) %>% 
+  bind_rows(bag_fit %>%
+              predict(test_data) %>%
+              bind_cols(test_data) %>% 
+              mutate(model = "bag")) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   #coord_obs_pred() +
@@ -232,9 +271,15 @@ rf_test_res <- rf_fit %>%
   bind_cols(test_data) %>% 
   mutate(.pred_dollar = 10^.pred)
 
+#predict bag against test data
+bag_test_res <- bag_fit %>% 
+  predict(test_data) %>% 
+  bind_cols(test_data) %>% 
+  mutate(.pred_dollar = 10^.pred)
 
 model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 model_metrics(rf_test_res, truth = sale_price_adj, estimate = .pred_dollar)
+model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 #eda results
 rmse_chart <- lm_fit %>%
