@@ -64,7 +64,7 @@ assessments_valid <- assessments %>%
   filter(sale_desc == "VALID SALE" | sale_desc == "OTHER VALID") %>% 
   semi_join(allowed_usedesc) %>% 
   select(par_id, usedesc, school_desc, muni_desc, sale_desc, sale_price, sale_date,
-         year_blt, style_desc, total_rooms, finished_living_area,
+         year_blt, style_desc, bedrooms, fullbaths, halfbaths, finished_living_area,
          lot_area, grade_desc, condition_desc) %>% 
   mutate(sale_date = mdy(sale_date),
          sale_year = year(sale_date)) %>% 
@@ -72,8 +72,11 @@ assessments_valid <- assessments %>%
          school_desc = str_trim(school_desc)) %>% 
   filter(sale_year > 1975,
          sale_price > 100) %>%
-  filter(par_id != "0014G00199000000") %>% 
-  drop_na()
+  filter(par_id != "0014G00199000000")
+
+
+assessments_valid %>% 
+  skimr::skim()
 
 #simplify condo and row end style desc types
 assessments_valid <- assessments_valid %>% 
@@ -110,8 +113,8 @@ assessments_valid %>%
 #find mean and sd for lot_area and finished_living_area
 lot_area_summary <- assessments_valid %>% 
   group_by(school_desc) %>% 
-  summarize(lot_area_mean = mean(lot_area),
-            lot_area_sd = sd(lot_area)) %>% 
+  summarize(lot_area_mean = mean(lot_area, na.rm = T),
+            lot_area_sd = sd(lot_area, na.rm = T)) %>% 
   ungroup()
 
 lot_area_summary %>% 
@@ -124,8 +127,8 @@ lot_area_summary %>%
 
 finished_living_area_summary <- assessments_valid %>% 
   group_by(style_desc) %>% 
-  summarize(finished_living_area_mean = mean(finished_living_area),
-            finished_living_area_sd = sd(finished_living_area)) %>% 
+  summarize(finished_living_area_mean = mean(finished_living_area, na.rm = T),
+            finished_living_area_sd = sd(finished_living_area, na.rm = T)) %>% 
   ungroup()
 
 # finished_living_area_summary %>% 
