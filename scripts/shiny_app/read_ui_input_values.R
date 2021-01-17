@@ -7,9 +7,9 @@ finished_living_area_summary <- read_csv("data/finished_living_area_summary.csv"
 
 #assessments <- read_csv("data/clean_assessment_data.csv")
 
-full_results <- read_csv("output/full_model_results.csv")
+full_results <- read_csv("output/lm_full_model_results.csv")
 
-model_fit <- read_rds("data/model_fit.rds")
+model_fit <- read_rds("data/rf_model_fit.rds")
 
 school_desc_distinct <- read_csv("data/ui_input_values/school_desc_distinct.csv")
 
