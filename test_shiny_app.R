@@ -127,10 +127,10 @@ server <- function(input, output) {
     #predict on data
     model_fit %>% 
       predict(predict_data_reactive()) %>% 
-      mutate(.pred = 10^.pred) %>% 
-      bind_cols(model_fit %>% 
-                  predict(predict_data_reactive(), type = "conf_int") %>% 
-                  mutate(across(matches("^.pred"), ~10^.x)))
+      mutate(.pred = 10^.pred) #%>% 
+      # bind_cols(model_fit %>% 
+      #             predict(predict_data_reactive(), type = "conf_int") %>% 
+      #             mutate(across(matches("^.pred"), ~10^.x)))
   })
   
   representative_sample_reactive <- reactive({
@@ -167,13 +167,15 @@ server <- function(input, output) {
   output$model_output_table <- renderTable({
     
     predictions_reactive() %>% 
-      mutate(.pred = dollar(.pred),
-             .pred_upper = dollar(.pred_upper),
-             .pred_lower = dollar(.pred_lower)) %>% 
-      rename(`Average Predicted Price` = .pred,
-             `Upper bound` = .pred_upper,
-             `Lower bound` = .pred_lower) %>% 
-      select(`Lower bound`, `Average Predicted Price`, `Upper bound`)
+      mutate(.pred = dollar(.pred)#,
+             #.pred_upper = dollar(.pred_upper),
+             #.pred_lower = dollar(.pred_lower)
+             ) %>% 
+      rename(`Average Predicted Price` = .pred#,
+             #`Upper bound` = .pred_upper,
+             #`Lower bound` = .pred_lower
+             ) #%>% 
+      #select(`Lower bound`, `Average Predicted Price`, `Upper bound`)
     
   })
   
@@ -182,11 +184,12 @@ server <- function(input, output) {
     representative_sample_reactive() %>%
       ggplot(aes(x = sale_price_adj)) +
       geom_histogram(fill = "grey", color = "black") +
-      annotate(geom = "rect",
-               xmin = predictions_reactive()$.pred_lower, xmax = predictions_reactive()$.pred_upper,
-               ymin = 0, ymax = Inf, fill = "#FCCF02", alpha = .7) +
+      # annotate(geom = "rect",
+      #          xmin = predictions_reactive()$.pred_lower, xmax = predictions_reactive()$.pred_upper,
+      #          ymin = 0, ymax = Inf, fill = "#FCCF02", alpha = .7) +
       geom_vline(aes(xintercept = predictions_reactive()$.pred),
-                 color = "#FCCF02") +
+                 color = "#FCCF02",
+                 size = 2) +
       scale_x_continuous(labels = scales::dollar_format()) +
       scale_y_comma() +
       coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.4)) +
