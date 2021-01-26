@@ -9,6 +9,8 @@ theme_set(theme_ipsum())
 
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 
+parcel_geo <- read_csv("data/clean_parcel_geo.csv")
+
 glimpse(assessments_valid)
 
 assessments_valid %>% 
@@ -46,10 +48,10 @@ assessments_valid %>%
   coord_cartesian(xlim = c(0, 10))
 
 assessments_valid %>% 
-  ggplot(aes(finished_livingarea, sale_price_adj)) +
+  ggplot(aes(finished_living_area, sale_price_adj)) +
   geom_density_2d_filled() +
   scale_y_log10() +
-  coord_cartesian(xlim = c(0, 10))
+  coord_cartesian(xlim = c(0, 5000))
 
 assessments_valid %>% 
   distinct(grade_desc)
@@ -78,8 +80,17 @@ assessments_valid %>%
   facet_wrap(~style_desc, scales = "free_y")
 
 assessments_valid %>% 
-  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
-  filter(is.na(longitude) | is.na(latitude)) %>% 
-  select(par_id) %>% 
-  semi_join(parcel_geo, by = c("par_id" = "pin"))
-  count(school_desc)
+  filter(geo_id %in% c("Keystone Oaks", "Quaker Valley")) %>% 
+  ggplot(aes(finished_living_area, fill = geo_id)) +
+  geom_density(alpha = .5)
+
+assessments_valid %>% 
+  ggplot(aes(lot_area)) +
+  geom_density() +
+  geom_vline(xintercept = 40000) +
+  scale_x_log10()
+
+assessments_valid %>% 
+  ggplot(aes(finished_living_area)) +
+  geom_density() +
+  scale_x_log10()
