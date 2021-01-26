@@ -7,6 +7,7 @@ library(hrbrthemes)
 library(skimr)
 library(future)
 library(lobstr)
+library(butcher)
 
 #plan(strategy = "multisession")
 
@@ -23,6 +24,8 @@ set.seed(1234)
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
+assessments_valid %>% 
+  filter(is.na(geo_id))
 
 skim(assessments_valid)
 # assessments_valid %>% 
@@ -35,13 +38,13 @@ housing_sales <- assessments_valid %>%
   select(-sale_price) %>% 
   select(everything(), longitude, latitude) %>% 
   select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
-         finished_living_area, bedrooms, fullbaths, halfbaths, school_desc, 
+         finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
          style_desc, grade_desc, condition_desc,
          longitude, latitude)
 
 #normalize lot_area and finished_living_area
 housing_sales <- housing_sales %>% 
-  group_by(school_desc) %>% 
+  group_by(geo_id) %>% 
   mutate(lot_area_zscore = scale(lot_area) %>% as.vector()) %>% 
   ungroup() %>% 
   group_by(style_desc) %>% 
@@ -70,20 +73,69 @@ test_data  <- testing(data_split)
 #   ggplot(aes(estimate, term)) +
 #   geom_point()
 
+assessments_valid %>% 
+  mutate(condition_desc = fct_relevel(condition_desc, "Average")) %>% 
+  arrange(condition_desc) %>% 
+  count(condition_desc)
+
+assessments_valid %>% 
+  select(condition_desc) %>% 
+  mutate(condition_desc_new = case_when(condition_desc %in% c("Poor", "Very Poor", "Unsound") ~ "Poor or worse",
+                                        condition_desc %in% c("Very Good", "Excellent") ~ "Very Good or better",
+                                        TRUE ~ condition_desc)) %>% 
+  count(condition_desc, condition_desc_new)
+
+assessments_valid %>% 
+  distinct(geo_id)
+
 #create recipe
 model_recipe <- recipe(sale_price_adj ~ .,
-                       data = train_data) %>% 
+                       data = train_data %>%
+                         group_by(geo_id) %>% 
+                         slice_sample(n = 100) %>% 
+                         ungroup()
+                         ) %>% 
   update_role(par_id, new_role = "id") %>% 
   update_role(longitude, latitude, new_role = "geo") %>% 
   step_log(sale_price_adj, base = 10, skip = TRUE) %>% 
-  step_modeimpute(condition_desc) %>% 
-  step_medianimpute(bedrooms, fullbaths, halfbaths) %>% 
-  step_other(style_desc, threshold = .05, other = "step_other") %>% 
-  step_string2factor(school_desc, style_desc, grade_desc, condition_desc) %>%
-  step_dummy(school_desc, style_desc, grade_desc, condition_desc)
+  step_modeimpute(condition_desc, grade_desc) %>%
+  step_medianimpute(bedrooms, fullbaths, halfbaths) %>%
+  step_mutate(condition_desc = as.character(condition_desc),
+              grade_desc = as.character(grade_desc)) %>% 
+  step_mutate(condition_desc = case_when(condition_desc %in% c("Poor", "Very Poor", "Unsound") ~ "Poor or worse",
+                                         condition_desc %in% c("Very Good", "Excellent") ~ "Very Good or better",
+                                         TRUE ~ condition_desc)) %>%
+  step_mutate(grade_desc = case_when(grade_desc %in% c("Below Average", "Poor") ~ "Below Average or worse",
+                                     grade_desc %in% c("Very Good", "Excellent", "Highest Cost") ~ "Very Good or better",
+                                     TRUE ~ grade_desc)) %>%
+  step_other(style_desc, threshold = .05, other = "style_other") %>%
+  step_other(geo_id, threshold = 100, other = "school_other") %>%
+  step_string2factor(geo_id, style_desc, grade_desc, condition_desc) %>%
+  step_relevel(condition_desc, ref_level = "Average") %>% 
+  step_relevel(grade_desc, ref_level = "Average") %>% 
+  step_dummy(geo_id, style_desc, grade_desc, condition_desc)
 
 model_recipe_prep <- model_recipe %>% 
   prep(strings_as_factors = FALSE)
+
+model_recipe_prep %>% 
+  weigh()
+
+model_recipe_prep %>% 
+  obj_size()
+
+model_recipe_prep %>% 
+  butcher(verbose = T)
+
+model_recipe_prep %>% 
+  write_rds("data/model_recipe_prepped.rds")
+
+read_rds("data/model_recipe_prepped.rds")
+
+model_recipe %>% 
+  prep() %>% 
+  juice() %>% 
+  glimpse()
 
 # model_recipe_prep %>% 
 #   summary() %>% 
@@ -133,7 +185,7 @@ bag_spec <- bag_tree(min_n = 10) %>%
 bag_wf <- workflow() %>%
   add_model(bag_spec) %>% 
   add_recipe(model_recipe)
-  
+
 #resample
 folds_train <- vfold_cv(train_data, v = 10)
 
@@ -153,8 +205,6 @@ rf_res <- rf_wflow %>%
 bag_res <- bag_wf %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
-
-collect_metrics(bag_res)
 
 #compare predictions against training data across models
 collect_predictions(lm_res) %>% 
@@ -178,17 +228,46 @@ collect_metrics(bag_res)
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
   fit(data = train_data)
-lobstr::obj_size(lm_fit)
+
+obj_size(lm_fit)
+
+lm_fit %>% 
+  pull_workflow_fit() %>% 
+  butcher(verbose = T) %>% 
+  obj_size()
 
 
 #rf_fit <- read_rds("data/rf_model_fit.rds")
 rf_fit <- rf_wflow %>%
   fit(data = train_data)
+
 lobstr::obj_size(rf_fit)
 
 bag_fit <- bag_wf %>% 
   fit(data = train_data)
+
 obj_size(bag_fit)
+
+weigh(bag_fit)
+
+bag_fit %>% 
+  pull_workflow_fit() %>% 
+  butcher(verbose = T) %>% 
+  obj_size()
+
+bag_fit %>% 
+  pull_workflow_fit() %>% 
+  butcher(verbose = T) %>% 
+  write_rds("data/test_bag_butcher.rds")
+
+test_bag_fit <- read_rds("data/test_bag_butcher.rds")
+
+small_data <- model_recipe %>% 
+  prep() %>% 
+  bake(test_data[1,])
+
+test_bag_fit %>% 
+  predict(small_data)
 
 #save model objects
 write_rds(lm_fit, "data/lm_model_fit.rds")
@@ -235,6 +314,7 @@ model_recipe %>%
   prep() %>%
   bake(test_data) %>%
   glimpse()
+
 
 #compare predictions against training data across models
 lm_fit %>%
@@ -285,10 +365,10 @@ model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 rmse_chart <- lm_fit %>%
   predict(train_data) %>%
   bind_cols(train_data) %>%
-  group_by(school_desc) %>%
+  group_by(geo_id) %>%
   rmse(log10(sale_price_adj), .pred) %>%
-  mutate(school_desc = fct_reorder(school_desc, .estimate)) %>%
-  ggplot(aes(.estimate, school_desc)) +
+  mutate(geo_id = fct_reorder(geo_id, .estimate)) %>%
+  ggplot(aes(.estimate, geo_id)) +
   geom_point()
 
 rmse_chart %>% 
@@ -322,7 +402,7 @@ rf_vi_chart <- rf_fit %>%
   vi() %>% 
   rename(term = Variable,
          importance = Importance) %>% 
-  mutate(term_type = case_when(str_detect(term, "^school_desc_") ~ "school_desc",
+  mutate(term_type = case_when(str_detect(term, "^geo_id") ~ "school_desc",
                                str_detect(term, "^grade_desc_") ~ "grade_desc",
                                str_detect(term, "^condition_desc_") ~ "condition_desc",
                                str_detect(term, "^style_desc_") ~ "style_desc",
