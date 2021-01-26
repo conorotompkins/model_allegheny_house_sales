@@ -4,6 +4,8 @@ library(janitor)
 library(lubridate)
 library(hrbrthemes)
 library(priceR)
+library(sf)
+library(leaflet)
 
 #https://data.wprdc.org/dataset/property-assessments/resource/f2b8d575-e256-4718-94ad-1e12239ddb92
 
@@ -53,9 +55,9 @@ usedesc_other <- assessments %>%
   anti_join(usedesc_top10) %>% 
   count(usedesc, sort = T) %>% 
   filter(usedesc %in% c("OFFICE/APARTMENTS OVER", "MOBILE HOME",
-                          "APART:20-39 UNITS", "APART:40+ UNITS",
-                          "CHARITABLE EXEMPTION/HOS/HOMES", "MOBILE HOME (IN PARK)",
-                          "COMM APRTM CONDOS 5-19 UNITS"))
+                        "APART:20-39 UNITS", "APART:40+ UNITS",
+                        "CHARITABLE EXEMPTION/HOS/HOMES", "MOBILE HOME (IN PARK)",
+                        "COMM APRTM CONDOS 5-19 UNITS"))
 
 allowed_usedesc <- bind_rows(usedesc_top10, usedesc_other) %>% 
   select(-n)
@@ -81,7 +83,7 @@ assessments_valid %>%
 #simplify condo and row end style desc types
 assessments_valid <- assessments_valid %>% 
   mutate(style_desc = case_when(str_detect(style_desc, "CONDO") ~ "CONDO",
-                                           TRUE ~ style_desc),
+                                TRUE ~ style_desc),
          style_desc = case_when(style_desc == "ROW END" | style_desc == "ROW INTERIOR" ~ "ROW",
                                 TRUE ~ style_desc))
 
@@ -110,36 +112,6 @@ assessments_valid <- assessments_valid %>%
 assessments_valid %>% 
   distinct(grade_desc, condition_desc, style_desc)
 
-#find mean and sd for lot_area and finished_living_area
-lot_area_summary <- assessments_valid %>% 
-  group_by(school_desc) %>% 
-  summarize(lot_area_mean = mean(lot_area, na.rm = T),
-            lot_area_sd = sd(lot_area, na.rm = T)) %>% 
-  ungroup()
-
-lot_area_summary %>% 
-  write_csv("data/lot_area_summary.csv")
-
-# lot_area_summary %>% 
-#   mutate(dummy_value = 3847.2,
-#          z_score = (dummy_value - lot_area_mean) / lot_area_sd) %>% 
-#   View()
-
-finished_living_area_summary <- assessments_valid %>% 
-  group_by(style_desc) %>% 
-  summarize(finished_living_area_mean = mean(finished_living_area, na.rm = T),
-            finished_living_area_sd = sd(finished_living_area, na.rm = T)) %>% 
-  ungroup()
-
-# finished_living_area_summary %>% 
-#   mutate(dummy_value = 1571.4,
-#          z_score = (dummy_value - finished_living_area_mean) / finished_living_area_sd) %>% 
-#   View()
-
-finished_living_area_summary %>% 
-  write_csv("data/finished_living_area_summary.csv")
-
-
 assessments_valid$sale_price_adj <- adjust_for_inflation(assessments_valid$sale_price, 
                                                          from_date = assessments_valid$sale_year, 
                                                          country = "US", 
@@ -147,8 +119,105 @@ assessments_valid$sale_price_adj <- adjust_for_inflation(assessments_valid$sale_
                                                          #extrapolate_future = T,
                                                          #extrapolate_future_method = "average",
                                                          #future_averaging_period = 5
-                                                         )
+)
+
 glimpse(assessments_valid)
 
-assessments_valid %>% 
+#join parcel data against unified geo_ids
+parcel_geo <- read_csv("data/clean_parcel_geo.csv")
+
+unified_geo_ids <- st_read("data/ui_input_values/unified_geo_ids/unified_geo_ids.shp") %>% 
+  st_transform(crs = "NAD83") %>% 
+  group_by(geo_id) %>% 
+  summarize() %>% 
+  st_cast("POLYGON")
+
+unified_geo_ids %>% 
+  st_drop_geometry() %>% 
+  View()
+
+unified_geo_ids %>% 
+  ggplot() +
+  geom_sf()
+
+unified_geo_ids %>% 
+  leaflet() %>% 
+  addPolygons(popup = ~geo_id)
+
+missing_geo_1 <- assessments_valid %>% 
+  anti_join(parcel_geo, by = c("par_id" = "pin"))
+
+joined_geo <- assessments_valid %>% 
+  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
+  drop_na(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = "NAD83") %>% 
+  st_join(unified_geo_ids) %>% 
+  st_drop_geometry()
+
+missing_geo_2 <- joined_geo %>% 
+  filter(is.na(geo_id))
+
+joined_geo <- joined_geo %>% 
+  anti_join(missing_geo_2, by = "par_id")
+
+missing_geo_combined <- bind_rows(missing_geo_1, missing_geo_2) %>% 
+  mutate(geo_id = case_when(school_desc == "19th Ward Pittsburgh" ~ "City Council District 4",
+                            school_desc == "Woodland Hills" ~ "Woodland Hills",
+                            school_desc == "Chartiers Valley" ~ "Chartiers Valley",
+                            school_desc == "Bethel Park" ~ "Bethel Park",
+                            school_desc == "Moon Area" ~ "Moon Area",
+                            school_desc == "West Jefferson Hills" ~ "West Jefferson Hills",
+                            school_desc == "Plum Boro" ~ "Plum Borough",
+                            school_desc == "South Park" ~ "South Park",
+                            school_desc == "Upper St Clair" ~ "Upper St. Clair Area"))
+
+missing_geo_combined %>% 
+  filter(is.na(geo_id)) %>% 
+  distinct(school_desc, geo_id)
+
+updated_assessments <- bind_rows(joined_geo, missing_geo_combined)
+
+updated_assessments %>% 
+  count(geo_id, sort = T) %>% 
+  View()
+
+updated_assessments %>% 
+  filter(is.na(geo_id)) %>% 
+  distinct(school_desc)
+
+updated_assessments %>% 
+  count(geo_id, sort = T) %>% 
+  left_join(unified_geo_ids) %>%
+  st_sf() %>% 
+  ggplot() +
+  geom_sf(aes(fill = n)) +
+  scale_fill_viridis_c()
+
+updated_assessments %>% 
+  count(geo_id, sort = T) %>% 
+  left_join(unified_geo_ids) %>%
+  st_sf() %>% 
+  leaflet() %>% 
+  addPolygons(popup = ~geo_id)
+
+updated_assessments %>% 
   write_csv("data/clean_assessment_data.csv")
+
+#find mean and sd for lot_area and finished_living_area
+lot_area_summary <- updated_assessments %>% 
+  group_by(geo_id) %>% 
+  summarize(lot_area_mean = mean(lot_area, na.rm = T),
+            lot_area_sd = sd(lot_area, na.rm = T)) %>% 
+  ungroup()
+
+lot_area_summary %>% 
+  write_csv("data/lot_area_summary.csv")
+
+finished_living_area_summary <- updated_assessments %>% 
+  group_by(style_desc) %>% 
+  summarize(finished_living_area_mean = mean(finished_living_area, na.rm = T),
+            finished_living_area_sd = sd(finished_living_area, na.rm = T)) %>% 
+  ungroup()
+
+finished_living_area_summary %>% 
+  write_csv("data/finished_living_area_summary.csv")
