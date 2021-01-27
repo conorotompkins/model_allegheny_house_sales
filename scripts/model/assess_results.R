@@ -69,7 +69,7 @@ rf_fit %>%
 bag_fit
 
 #compare predictions against training data across models
-lm_fit %>%
+test_predictions_scatter <- lm_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>% 
   mutate(model = "lm") %>% 
@@ -88,6 +88,8 @@ lm_fit %>%
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
   facet_wrap(~model, ncol = 1) +
   labs(title = "Test Data")
+
+ggsave(test_predictions_scatter, filename = "output/test_predictions_scatter.png")
 
 #predict lm against test data
 lm_test_res <- lm_fit %>% 
@@ -109,38 +111,44 @@ bag_test_res <- bag_fit %>%
 
 model_metrics <- metric_set(rmse, rsq, mape)
 
-tibble(model = c("lm", "rf", "bag"),
-       model_results = list(lm_test_res, rf_test_res, bag_test_res),
-       metrics = map(model_results, ~model_metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
+test_metrics <- tibble(model_name = c("lm", "rf", "bag"),
+                        dataset = "test",
+                        model_res = list(lm_test_res, rf_test_res, bag_test_res)) %>%
+  mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
   unnest(metrics) %>% 
-  select(model, .metric, .estimate) %>% 
-  filter(.metric %in% c("rsq", "mape")) %>% 
+  select(-model_res)
+
+test_metric_graph <- test_metrics %>% 
+  select(model_name, .metric, .estimate) %>% 
   pivot_wider(names_from = .metric, values_from = .estimate) %>% 
-  ggplot(aes(rsq, mape)) +
-  geom_label(aes(label = model))
+  ggplot(aes(rmse, rsq)) +
+  geom_label(aes(label = model_name))
+
+ggsave(test_metric_graph, filename = "output/test_metric_graph.png")
+
 
 model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 model_metrics(rf_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 #eda results
-rmse_chart <- lm_fit %>%
+lm_rmse_chart <- lm_fit %>%
   predict(train_data) %>%
   bind_cols(train_data) %>%
-  group_by(school_desc) %>%
+  group_by(geo_id) %>%
   rmse(log10(sale_price_adj), .pred) %>%
-  mutate(school_desc = fct_reorder(school_desc, .estimate)) %>%
-  ggplot(aes(.estimate, school_desc)) +
+  mutate(geo_id = fct_reorder(geo_id, .estimate)) %>%
+  ggplot(aes(.estimate, geo_id)) +
   geom_point()
 
-rmse_chart %>% 
-  ggsave(filename = "output/rmse_chart.png", height = 12)
+lm_rmse_chart %>% 
+  ggsave(filename = "output/lm_rmse_chart.png", height = 12)
 
 lm_term_coefficient_chart <- lm_fit %>%
   pull_workflow_fit() %>%
   tidy() %>%
   filter(term != "(Intercept)") %>%
-  mutate(term_type = case_when(str_detect(term, "^school_desc_") ~ "school_desc",
+  mutate(term_type = case_when(str_detect(term, "^geo_id") ~ "geo_id",
                                str_detect(term, "^grade_desc_") ~ "grade_desc",
                                str_detect(term, "^condition_desc_") ~ "condition_desc",
                                str_detect(term, "^style_desc_") ~ "style_desc",
@@ -164,7 +172,7 @@ rf_vi_chart <- rf_fit %>%
   vi() %>% 
   rename(term = Variable,
          importance = Importance) %>% 
-  mutate(term_type = case_when(str_detect(term, "^school_desc_") ~ "school_desc",
+  mutate(term_type = case_when(str_detect(term, "^geo_id") ~ "geo_id",
                                str_detect(term, "^grade_desc_") ~ "grade_desc",
                                str_detect(term, "^condition_desc_") ~ "condition_desc",
                                str_detect(term, "^style_desc_") ~ "style_desc",
@@ -184,5 +192,4 @@ rf_vi_chart %>%
 
 
 bag_fit %>% 
-  pull_workflow_fit() %>% 
-  map(1)
+  pull_workflow_fit()

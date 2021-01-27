@@ -56,6 +56,10 @@ bag_res <- bag_wf %>%
                 control = keep_pred)
 
 #compare predictions against training data across models
+collect_metrics(lm_res)
+collect_metrics(rf_res)
+collect_metrics(bag_res)
+
 train_predictions_scatter <- collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
@@ -74,9 +78,24 @@ train_predictions_scatter
 train_predictions_scatter %>% 
   ggsave(filename = "output/train_predictions_scatter.png")
 
-collect_metrics(lm_res)
-collect_metrics(rf_res)
-collect_metrics(bag_res)
+train_metrics <- tibble(model_name = c("lm", "rf", "bag"),
+       dataset = "train",
+       model_res = list(lm_res, rf_res, bag_res)) %>%
+  mutate(metrics = map(model_res, collect_metrics)) %>% 
+  unnest(metrics) %>% 
+  select(-model_res)
+
+train_metric_graph <- train_metrics %>% 
+  select(model_name, .metric, mean) %>% 
+  pivot_wider(names_from = .metric, values_from = mean) %>% 
+  ggplot(aes(rmse, rsq)) +
+  geom_label(aes(label = model_name))
+
+ggsave(train_metric_graph, filename = "output/train_metric_graph.png")
+  
+train_metrics %>% 
+  write_csv("output/train_metrics.csv")
+
 
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
@@ -93,15 +112,6 @@ bag_fit <- bag_wf %>%
   fit(data = train_data)
 
 obj_size(bag_fit)
-
-small_data <- model_recipe %>% 
-  prep() %>% 
-  bake(test_data[1,])
-
-bag_fit %>% 
-  pull_workflow_fit() %>% 
-  butcher(verbose = T) %>% 
-  predict(small_data)
 
 bag_fit %>% 
   predict(test_data[1,])

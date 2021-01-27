@@ -19,16 +19,10 @@ set.seed(1234)
 #https://www.tmwr.org/index.html
 
 #eda combined
-# source("scripts/clean_assessments.R")
-# source("scripts/clean_parcel_geo.R")
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
-
 skim(assessments_valid)
-# assessments_valid %>% 
-#   filter(par_id == "0098S00148000000") %>% 
-#   View()
 
 housing_sales <- assessments_valid %>% 
   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
@@ -112,11 +106,12 @@ model_recipe <- recipe(sale_price_adj ~ .,
 
 model_recipe %>% 
   prep() %>% 
-  write_rds("data/model_recipe_prepped.rds")
+  juice() %>% 
+  glimpse()
 
-read_rds("data/model_recipe_prepped.rds")
+model_recipe %>% 
+  write_rds("data/model_recipe.rds")
 
 model_recipe %>% 
   prep() %>% 
-  juice() %>% 
-  glimpse()
+  write_rds("data/model_recipe_prepped.rds")

@@ -1,5 +1,7 @@
 library(tidyverse)
 library(tidymodels)
+library(baguette)
+library(recipes)
 
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
@@ -10,13 +12,13 @@ housing_sales <- assessments_valid %>%
   select(-sale_price) %>% 
   select(everything(), longitude, latitude) %>% 
   select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
-         finished_living_area, bedrooms, fullbaths, halfbaths, school_desc, 
+         finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
          style_desc, grade_desc, condition_desc,
          longitude, latitude)
 
 #normalize lot_area and finished_living_area
 housing_sales <- housing_sales %>% 
-  group_by(school_desc) %>% 
+  group_by(geo_id) %>% 
   mutate(lot_area_zscore = scale(lot_area) %>% as.vector()) %>% 
   ungroup() %>% 
   group_by(style_desc) %>% 
@@ -55,3 +57,17 @@ lm_full_results %>%
               select(par_id, sale_year)) %>%
   select(everything(), longitude, latitude) %>% 
   write_csv("output/lm_full_model_results.csv")
+
+
+#rf model full results
+rf_fit %>% 
+  predict(housing_sales) %>% 
+  bind_cols(housing_sales) %>% 
+  write_csv("output/rf_full_model_results.csv")
+
+
+#bag model full results
+bag_fit %>% 
+  predict(housing_sales) %>% 
+  bind_cols(housing_sales) %>% 
+  write_csv("output/bag_full_model_results.csv")
