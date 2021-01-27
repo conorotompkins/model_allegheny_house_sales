@@ -45,17 +45,55 @@ lm_res <- lm_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
+lm_metrics <- lm_res %>% 
+  select(.predictions) %>% 
+  unnest(.predictions) %>% 
+  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred)
+
 #fit rf against resampled training data
 rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
+
+rf_metrics <- rf_res %>% 
+  select(.predictions) %>% 
+  unnest(.predictions) %>% 
+  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred)
 
 #fit bag against resampled training data
 bag_res <- bag_wf %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
 
+bag_metrics <- bag_res %>% 
+  select(.predictions) %>% 
+  unnest(.predictions) %>% 
+  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred)
+
 #compare predictions against training data across models
+
+#train metrics
+train_metrics <- tibble(model_name = c("lm", "rf", "bag"),
+                       dataset = "train",
+                       model_metrics = list(lm_metrics, rf_metrics, bag_metrics)) %>%
+  #mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
+  unnest(model_metrics)
+
+train_metrics %>% 
+  write_csv("output/train_metrics.csv")
+
+train_metric_graph <- train_metrics %>% 
+  select(model_name, .metric, .estimate) %>% 
+  pivot_wider(names_from = .metric, values_from = .estimate) %>% 
+  ggplot(aes(rmse, rsq)) +
+  geom_label(aes(label = model_name))
+
+ggsave(train_metric_graph, filename = "output/train_metric_graph.png")
+
+
 collect_metrics(lm_res)
 collect_metrics(rf_res)
 collect_metrics(bag_res)
@@ -77,24 +115,6 @@ train_predictions_scatter
 
 train_predictions_scatter %>% 
   ggsave(filename = "output/train_predictions_scatter.png")
-
-train_metrics <- tibble(model_name = c("lm", "rf", "bag"),
-       dataset = "train",
-       model_res = list(lm_res, rf_res, bag_res)) %>%
-  mutate(metrics = map(model_res, collect_metrics)) %>% 
-  unnest(metrics) %>% 
-  select(-model_res)
-
-train_metric_graph <- train_metrics %>% 
-  select(model_name, .metric, mean) %>% 
-  pivot_wider(names_from = .metric, values_from = mean) %>% 
-  ggplot(aes(rmse, rsq)) +
-  geom_label(aes(label = model_name))
-
-ggsave(train_metric_graph, filename = "output/train_metric_graph.png")
-  
-train_metrics %>% 
-  write_csv("output/train_metrics.csv")
 
 
 #fit against entire training data set
