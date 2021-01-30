@@ -6,6 +6,7 @@ library(hrbrthemes)
 library(priceR)
 library(sf)
 library(leaflet)
+library(skimr)
 
 #https://data.wprdc.org/dataset/property-assessments/resource/f2b8d575-e256-4718-94ad-1e12239ddb92
 
@@ -34,7 +35,11 @@ names(assessments) <- names(assessments) %>%
                                "lot" = "lot_",
                                "grade" = "grade_",
                                "condition" = "condition_",
-                               "finished_livingarea" = "finished_living_area"))
+                               "finished_livingarea" = "finished_living_area",
+                               "cdu" = "cdu_",
+                               "basement" = "basement_",
+                               "roof" = "roof_",
+                               "heatingcooling" = "heatingcooling_"))
 
 
 glimpse(assessments)
@@ -64,12 +69,20 @@ allowed_usedesc <- bind_rows(usedesc_top10, usedesc_other) %>%
 
 assessments_valid <- assessments %>% 
   filter(sale_desc == "VALID SALE" | sale_desc == "OTHER VALID") %>% 
-  semi_join(allowed_usedesc) %>% 
+  semi_join(allowed_usedesc)
+
+assessments_valid %>% 
+  skimr::skim()
+
+assessments_valid <- assessments_valid %>% 
   select(par_id, usedesc, school_desc, muni_desc, sale_desc, sale_price, sale_date,
          year_blt, style_desc, bedrooms, fullbaths, halfbaths, finished_living_area,
-         lot_area, grade_desc, condition_desc) %>% 
+         lot_area, grade_desc, condition_desc,
+         extfinish_desc, roof_desc, basement_desc, cdu_desc, heatingcooling_desc,
+         fireplaces, bsmtgarage) %>% 
   mutate(sale_date = mdy(sale_date),
-         sale_year = year(sale_date)) %>% 
+         sale_year = year(sale_date),
+         sale_month = month(sale_date, label = T)) %>% 
   mutate(muni_desc = str_trim(muni_desc),
          school_desc = str_trim(school_desc)) %>% 
   filter(sale_year > 1975,
@@ -77,8 +90,7 @@ assessments_valid <- assessments %>%
   filter(par_id != "0014G00199000000")
 
 
-assessments_valid %>% 
-  skimr::skim()
+
 
 #simplify condo and row end style desc types
 assessments_valid <- assessments_valid %>% 
@@ -105,12 +117,23 @@ assessments_valid <- assessments_valid %>%
 
 #clean up grade_desc and condition_desc text
 assessments_valid <- assessments_valid %>% 
-  mutate(across(.cols = c(grade_desc, condition_desc, style_desc), str_to_title)) %>% 
+  mutate(across(.cols = matches("_desc$"), str_to_title)) %>% 
   mutate(across(.cols = c(grade_desc, condition_desc), ~str_remove(.x, "\\+|\\-"))) %>% 
-  mutate(across(.cols = c(grade_desc, condition_desc, style_desc), str_squish))
+  mutate(across(.cols = c(grade_desc, condition_desc, style_desc), str_squish)) %>% 
+  mutate(heatingcooling_desc = str_replace(heatingcooling_desc, "With Ac", "With AC"))
+
+#clean up heatingcooling_desc and create ac_flag
+assessments_valid %>% 
+  count(heatingcooling_desc, sort = T)
+
+assessments_valid <- assessments_valid %>% 
+  mutate(ac_flag = str_detect(heatingcooling_desc, "With AC$"),
+         heat_type = str_remove(heatingcooling_desc, "With AC$") %>% str_squish,
+         heat_type = case_when(heat_type == "No Heat But" ~ "None",
+                               TRUE ~ heat_type))
 
 assessments_valid %>% 
-  distinct(grade_desc, condition_desc, style_desc)
+  count(ac_flag, heat_type, heatingcooling_desc, sort = T)
 
 assessments_valid$sale_price_adj <- adjust_for_inflation(assessments_valid$sale_price, 
                                                          from_date = assessments_valid$sale_year, 
@@ -132,17 +155,17 @@ unified_geo_ids <- st_read("data/ui_input_values/unified_geo_ids/unified_geo_ids
   summarize() %>% 
   st_cast("POLYGON")
 
-unified_geo_ids %>% 
-  st_drop_geometry() %>% 
-  View()
-
-unified_geo_ids %>% 
-  ggplot() +
-  geom_sf()
-
-unified_geo_ids %>% 
-  leaflet() %>% 
-  addPolygons(popup = ~geo_id)
+# unified_geo_ids %>% 
+#   st_drop_geometry() %>% 
+#   View()
+# 
+# unified_geo_ids %>% 
+#   ggplot() +
+#   geom_sf()
+# 
+# unified_geo_ids %>% 
+#   leaflet() %>% 
+#   addPolygons(popup = ~geo_id)
 
 missing_geo_1 <- assessments_valid %>% 
   anti_join(parcel_geo, by = c("par_id" = "pin"))
@@ -177,9 +200,9 @@ missing_geo_combined %>%
 
 updated_assessments <- bind_rows(joined_geo, missing_geo_combined)
 
-updated_assessments %>% 
-  count(geo_id, sort = T) %>% 
-  View()
+# updated_assessments %>% 
+#   count(geo_id, sort = T) %>% 
+#   View()
 
 updated_assessments %>% 
   filter(is.na(geo_id)) %>% 
@@ -203,21 +226,3 @@ updated_assessments %>%
 updated_assessments %>% 
   write_csv("data/clean_assessment_data.csv")
 
-#find mean and sd for lot_area and finished_living_area
-lot_area_summary <- updated_assessments %>% 
-  group_by(geo_id) %>% 
-  summarize(lot_area_mean = mean(lot_area, na.rm = T),
-            lot_area_sd = sd(lot_area, na.rm = T)) %>% 
-  ungroup()
-
-lot_area_summary %>% 
-  write_csv("data/lot_area_summary.csv")
-
-finished_living_area_summary <- updated_assessments %>% 
-  group_by(style_desc) %>% 
-  summarize(finished_living_area_mean = mean(finished_living_area, na.rm = T),
-            finished_living_area_sd = sd(finished_living_area, na.rm = T)) %>% 
-  ungroup()
-
-finished_living_area_summary %>% 
-  write_csv("data/finished_living_area_summary.csv")
