@@ -2,6 +2,8 @@ library(tidyverse)
 library(tidymodels)
 library(hrbrthemes)
 library(baguette)
+library(vip)
+library(butcher)
 
 theme_set(theme_ipsum())
 
@@ -91,6 +93,22 @@ test_predictions_scatter <- lm_fit %>%
 
 ggsave(test_predictions_scatter, filename = "output/test_predictions_scatter.png")
 
+
+test_predictions_scatter <- bag_fit %>%
+  predict(test_data) %>%
+  bind_cols(test_data) %>% 
+  mutate(model = "bagged tree") %>% 
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_density_2d_filled() +
+  #coord_obs_pred() +
+  geom_abline(color = "white", lty = 2) +
+  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
+  facet_wrap(~model, ncol = 1) +
+  labs(title = "Test Data")
+
+test_predictions_scatter %>% 
+  ggsave(filename = "output/test_predictions_scatter.png")
+
 #predict lm against test data
 lm_test_res <- lm_fit %>% 
   predict(test_data) %>% 
@@ -111,18 +129,22 @@ bag_test_res <- bag_fit %>%
 
 model_metrics <- metric_set(rmse, rsq, mape)
 
-test_metrics <- tibble(model_name = c("lm", "rf", "bag"),
+test_metrics <- tibble(model_name = c("lm", "random forest", "bagged tree"),
                         dataset = "test",
                         model_res = list(lm_test_res, rf_test_res, bag_test_res)) %>%
   mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
   unnest(metrics) %>% 
   select(-model_res)
 
+test_metrics %>% 
+  write_csv("output/test_metrics.csv")
+
 test_metric_graph <- test_metrics %>% 
   select(model_name, .metric, .estimate) %>% 
   pivot_wider(names_from = .metric, values_from = .estimate) %>% 
   ggplot(aes(rmse, rsq)) +
-  geom_label(aes(label = model_name))
+  geom_label(aes(label = model_name)) +
+  scale_x_continuous(label = scales::dollar)
 
 ggsave(test_metric_graph, filename = "output/test_metric_graph.png")
 
@@ -190,6 +212,8 @@ rf_vi_chart <- rf_fit %>%
 rf_vi_chart %>% 
   ggsave(filename = "output/rf_vi_chart.png", height = 18, width = 12)
 
-
 bag_fit %>% 
-  pull_workflow_fit()
+  pull_workflow_fit() %>% 
+  butcher() %>% 
+  .$imp %>% 
+  write_csv("output/bagged_tree_variable_importance.csv")
