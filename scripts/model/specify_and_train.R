@@ -25,6 +25,8 @@ rf_wflow <- workflow() %>%
   add_recipe(model_recipe)
 
 #specify bagged tree model
+future::plan("multisession")
+
 bag_spec <- bag_tree(min_n = 25) %>%
   set_engine("rpart", 
              times = 25,
@@ -48,8 +50,8 @@ lm_res <- lm_wflow %>%
 lm_metrics <- lm_res %>% 
   select(.predictions) %>% 
   unnest(.predictions) %>% 
-  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
-  metrics(truth = sale_price_adj, estimate = .pred)
+  mutate(.pred_dollar = 10^.pred) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
 #fit rf against resampled training data
 rf_res <- rf_wflow %>%
@@ -59,8 +61,8 @@ rf_res <- rf_wflow %>%
 rf_metrics <- rf_res %>% 
   select(.predictions) %>% 
   unnest(.predictions) %>% 
-  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
-  metrics(truth = sale_price_adj, estimate = .pred)
+  mutate(.pred_dollar = 10^.pred) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
 #fit bag against resampled training data
 bag_res <- bag_wf %>%
@@ -70,13 +72,13 @@ bag_res <- bag_wf %>%
 bag_metrics <- bag_res %>% 
   select(.predictions) %>% 
   unnest(.predictions) %>% 
-  mutate(sale_price_adj = log10(sale_price_adj)) %>% 
-  metrics(truth = sale_price_adj, estimate = .pred)
+  mutate(.pred_dollar = 10^.pred) %>% 
+  metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
 #compare predictions against training data across models
 
 #train metrics
-train_metrics <- tibble(model_name = c("lm", "rf", "bag"),
+train_metrics <- tibble(model_name = c("lm", "random forest", "bagged tree"),
                        dataset = "train",
                        model_metrics = list(lm_metrics, rf_metrics, bag_metrics)) %>%
   #mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
@@ -93,17 +95,12 @@ train_metric_graph <- train_metrics %>%
 
 ggsave(train_metric_graph, filename = "output/train_metric_graph.png")
 
-
-collect_metrics(lm_res)
-collect_metrics(rf_res)
-collect_metrics(bag_res)
-
 train_predictions_scatter <- collect_predictions(lm_res) %>% 
   mutate(model = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
-              mutate(model = "rf")) %>% 
+              mutate(model = "random forest")) %>% 
   bind_rows(collect_predictions(bag_res) %>% 
-              mutate(model = "bag")) %>% 
+              mutate(model = "bagged tree")) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   #coord_obs_pred() +
@@ -116,6 +113,17 @@ train_predictions_scatter
 train_predictions_scatter %>% 
   ggsave(filename = "output/train_predictions_scatter.png")
 
+bagged_tree_train_scatter <- collect_predictions(bag_res) %>% 
+  mutate(model = "bagged tree") %>% 
+  ggplot(aes(log10(sale_price_adj), .pred)) +
+  geom_density_2d_filled() +
+  #coord_obs_pred() +
+  geom_abline(color = "white", lty = 2) +
+  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
+  facet_wrap(~model, ncol = 1)
+
+bagged_tree_train_scatter %>% 
+  ggsave(filename = "output/bagged_tree_train_scatter.png")
 
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
