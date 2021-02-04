@@ -1,3 +1,4 @@
+library(tictoc)
 
 #specify lm model
 lm_mod <- linear_reg() %>% 
@@ -43,9 +44,11 @@ folds_train <- vfold_cv(train_data, v = 10)
 keep_pred <- control_resamples(save_pred = TRUE)
 
 #fit lm against resampled training data
+tic()
 lm_res <- lm_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
+toc()
 
 lm_metrics <- lm_res %>% 
   select(.predictions) %>% 
@@ -53,10 +56,15 @@ lm_metrics <- lm_res %>%
   mutate(.pred_dollar = 10^.pred) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
+lm_metrics
+
 #fit rf against resampled training data
+#11 minutes to run
+tic()
 rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
+toc()
 
 rf_metrics <- rf_res %>% 
   select(.predictions) %>% 
@@ -64,10 +72,15 @@ rf_metrics <- rf_res %>%
   mutate(.pred_dollar = 10^.pred) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
+rf_metrics
+
 #fit bag against resampled training data
+#28 minutes to run
+tic()
 bag_res <- bag_wf %>%
   fit_resamples(resamples = folds_train,
                 control = keep_pred)
+toc()
 
 bag_metrics <- bag_res %>% 
   select(.predictions) %>% 
@@ -75,13 +88,14 @@ bag_metrics <- bag_res %>%
   mutate(.pred_dollar = 10^.pred) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
+bag_metrics
+
 #compare predictions against training data across models
 
 #train metrics
 train_metrics <- tibble(model_name = c("lm", "random forest", "bagged tree"),
                        dataset = "train",
                        model_metrics = list(lm_metrics, rf_metrics, bag_metrics)) %>%
-  #mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
   unnest(model_metrics)
 
 train_metrics %>% 
@@ -103,27 +117,27 @@ train_predictions_scatter <- collect_predictions(lm_res) %>%
               mutate(model = "bagged tree")) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
-  #coord_obs_pred() +
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
   facet_wrap(~model, ncol = 1)
 
-train_predictions_scatter
-
 train_predictions_scatter %>% 
-  ggsave(filename = "output/train_predictions_scatter.png")
+  ggsave(filename = "output/train_predictions_scatter.png",
+         width = 12,
+         height = 12)
 
 bagged_tree_train_scatter <- collect_predictions(bag_res) %>% 
   mutate(model = "bagged tree") %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
-  #coord_obs_pred() +
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
   facet_wrap(~model, ncol = 1)
 
 bagged_tree_train_scatter %>% 
-  ggsave(filename = "output/bagged_tree_train_scatter.png")
+  ggsave(filename = "output/bagged_tree_train_scatter.png",
+         width = 12,
+         height = 12)
 
 #fit against entire training data set
 lm_fit <- lm_wflow %>%
@@ -150,6 +164,4 @@ write_rds(lm_fit, "data/lm_model_fit.rds")
 write_rds(rf_fit, "data/rf_model_fit.rds")
 
 bag_fit %>% 
-  # pull_workflow_fit() %>% 
-  # butcher(verbose = T) %>% 
   write_rds("data/bag_model_fit.rds")
