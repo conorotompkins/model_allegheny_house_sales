@@ -8,23 +8,12 @@ parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
 housing_sales <- assessments_valid %>% 
   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
-  #mutate(sale_price_adj_log10 = log10(sale_price_adj)) %>% 
   select(-sale_price) %>% 
   select(everything(), longitude, latitude) %>% 
   select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
          finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
          style_desc, grade_desc, condition_desc,
          longitude, latitude)
-
-#normalize lot_area and finished_living_area
-housing_sales <- housing_sales %>% 
-  group_by(geo_id) %>% 
-  mutate(lot_area_zscore = scale(lot_area) %>% as.vector()) %>% 
-  ungroup() %>% 
-  group_by(style_desc) %>% 
-  mutate(finished_living_area_zscore = scale(finished_living_area) %>% as.vector()) %>% 
-  ungroup() %>% 
-  select(-c(finished_living_area, lot_area))
 
 lm_fit <- read_rds("data/lm_model_fit.rds")
 rf_fit <- read_rds("data/rf_model_fit.rds")
