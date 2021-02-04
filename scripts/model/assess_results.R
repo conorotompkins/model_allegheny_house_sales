@@ -10,14 +10,7 @@ theme_set(theme_ipsum())
 assessments_valid <- read_csv("data/clean_assessment_data.csv")
 parcel_geo <- read_csv("data/clean_parcel_geo.csv")
 
-housing_sales <- assessments_valid %>% 
-  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
-  select(-sale_price) %>% 
-  select(everything(), longitude, latitude) %>% 
-  select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
-         finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
-         style_desc, grade_desc, condition_desc,
-         longitude, latitude)
+housing_sales <- read_csv("data/clean_housing_sales.csv")
 
 set.seed(1234)
 
@@ -67,11 +60,11 @@ test_predictions_scatter <- lm_fit %>%
   bind_rows(rf_fit %>%
               predict(test_data) %>%
               bind_cols(test_data) %>% 
-              mutate(model = "rf")) %>% 
+              mutate(model = "random forest")) %>% 
   bind_rows(bag_fit %>%
               predict(test_data) %>%
               bind_cols(test_data) %>% 
-              mutate(model = "bag")) %>% 
+              mutate(model = "bagged tree")) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   geom_abline(color = "white", lty = 2) +
@@ -90,7 +83,6 @@ test_predictions_scatter_bagged <- bag_fit %>%
   mutate(model = "bagged tree") %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
-  #coord_obs_pred() +
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
   facet_wrap(~model, ncol = 1) +
@@ -189,19 +181,42 @@ rf_vi_chart <- rf_fit %>%
                                str_detect(term, "^grade_desc_") ~ "grade_desc",
                                str_detect(term, "^condition_desc_") ~ "condition_desc",
                                str_detect(term, "^style_desc_") ~ "style_desc",
+                               str_detect(term, "^sale_month_") ~ "sale_month",
                                TRUE ~ "other")) %>% 
-  add_count(term_type, name = "term_type_count") %>% 
   mutate(term = str_remove(term, term_type)) %>% 
-  mutate(term_type = fct_reorder(term_type, term_type_count)) %>% 
+  mutate(term_type = fct_reorder(term_type, importance, .fun = max, .desc = T)) %>% 
   mutate(term = tidytext::reorder_within(term, importance, term_type)) %>%
   ggplot(aes(importance, term)) +
-  geom_vline(xintercept = 0, lty = 2) +
+  #geom_vline(xintercept = 0, lty = 2) +
   geom_point() +
   facet_wrap(~term_type, scales = "free", nrow = 3) +
   tidytext::scale_y_reordered()
 
 rf_vi_chart %>% 
   ggsave(filename = "output/rf_vi_chart.png", height = 18, width = 12)
+
+bagged_tree_vi_chart <- bag_fit %>% 
+  pull_workflow_fit() %>% 
+  butcher() %>% 
+  .$imp %>% 
+  mutate(term_type = case_when(str_detect(term, "^geo_id") ~ "geo_id",
+                               str_detect(term, "^grade_desc_") ~ "grade_desc",
+                               str_detect(term, "^condition_desc_") ~ "condition_desc",
+                               str_detect(term, "^style_desc_") ~ "style_desc",
+                               str_detect(term, "^sale_month_") ~ "sale_month",
+                               TRUE ~ "other")) %>% 
+  mutate(term = str_remove(term, term_type)) %>% 
+  mutate(term_type = fct_reorder(term_type, value, .fun = max, .desc = T)) %>% 
+  mutate(term = tidytext::reorder_within(term, value, term_type)) %>%
+  ggplot(aes(value, term)) +
+  geom_point() +
+  facet_wrap(~term_type, scales = "free", nrow = 3) +
+  tidytext::scale_y_reordered()
+
+bagged_tree_vi_chart %>% 
+  ggsave(filename = "output/bagged_tree_vi_chart.png", 
+         width = 8,
+         height = 20)
 
 bag_fit %>% 
   pull_workflow_fit() %>% 

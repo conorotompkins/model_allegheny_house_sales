@@ -59,7 +59,7 @@ lm_metrics <- lm_res %>%
 lm_metrics
 
 #fit rf against resampled training data
-#11 minutes to run
+#13 minutes to run
 tic()
 rf_res <- rf_wflow %>%
   fit_resamples(resamples = folds_train,
@@ -75,7 +75,7 @@ rf_metrics <- rf_res %>%
 rf_metrics
 
 #fit bag against resampled training data
-#28 minutes to run
+#27 minutes to run
 tic()
 bag_res <- bag_wf %>%
   fit_resamples(resamples = folds_train,
@@ -155,8 +155,11 @@ bag_fit <- bag_wf %>%
 
 obj_size(bag_fit)
 
+slice(test_data, 1:2) %>% 
+  glimpse()
+
 bag_fit %>% 
-  predict(test_data[1,])
+  predict(slice(test_data, 1:2))
 
 #save model objects
 write_rds(lm_fit, "data/lm_model_fit.rds")
