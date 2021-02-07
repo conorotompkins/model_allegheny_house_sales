@@ -3,6 +3,8 @@
 library(shiny)
 library(shinythemes)
 library(shinyWidgets)
+library(plotly)
+
 library(tidyverse)
 library(tidymodels)
 library(hrbrthemes)
@@ -103,8 +105,11 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      multiple = FALSE),
                          verbatimTextOutput("txtout")
                   ), #column 1
+                  column(6,
+                         plotlyOutput("style_desc_bar_graph"),#investigate height and width arguments#investigate height and width arguments
+                         ),
                   column(9, # column 2
-                         textOutput("leaflet_title"),
+                         textOutput("leaflet_title"), #investigate height and width arguments
                          leafletOutput("geo_id_map"),
                          plotOutput("model_output_graph"),
                          tableOutput("model_output_table")
