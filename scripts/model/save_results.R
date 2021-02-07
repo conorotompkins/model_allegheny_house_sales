@@ -2,58 +2,40 @@ library(tidyverse)
 library(tidymodels)
 library(baguette)
 library(recipes)
+library(hrbrthemes)
 
-assessments_valid <- read_csv("data/clean_assessment_data.csv")
-parcel_geo <- read_csv("data/clean_parcel_geo.csv")
+theme_set(theme_ipsum())
 
-housing_sales <- assessments_valid %>% 
-  left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
-  select(-sale_price) %>% 
-  select(everything(), longitude, latitude) %>% 
-  select(par_id, sale_price_adj, house_age_at_sale, lot_area, 
-         finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
-         style_desc, grade_desc, condition_desc,
-         longitude, latitude)
+housing_sales <- read_csv("data/clean_housing_sales.csv")
 
-lm_fit <- read_rds("data/lm_model_fit.rds")
-rf_fit <- read_rds("data/rf_model_fit.rds")
-bag_fit <- read_rds("data/bag_model_fit.rds")
+bag_fit <- read_rds("data/bag_model_fit_v.02.rds")
 
-lm_fit %>% 
-  pull_workflow_fit() %>% 
-  tidy() %>% 
-  write_csv("data/lm_model_coefficients.csv")
-
-lm_full_results <- lm_fit %>% 
-  predict(housing_sales) %>% 
-  bind_cols(housing_sales)
-
-lm_full_results_conf_int <- lm_fit %>% 
-  predict(housing_sales, type = "conf_int") %>% 
-  bind_cols(housing_sales %>% select(par_id))
-
-lm_full_results <- lm_full_results %>% 
-  left_join(lm_full_results_conf_int) %>% 
-  mutate(.pred_dollar = 10^.pred,
-         .pred_upper_dollar = 10^.pred_upper,
-         .pred_lower_dollar = 10^.pred_lower,
-         .resid = log10(sale_price_adj) - .pred,
-         .resid_dollar = sale_price_adj - .pred_dollar) %>% 
-  select(par_id, starts_with("sale_price"), starts_with(".pred"), starts_with(".resid"), everything())
-
-lm_full_results %>% 
-  left_join(assessments_valid %>% 
-              select(par_id, sale_year)) %>%
-  select(everything(), longitude, latitude) %>% 
-  write_csv("output/lm_full_model_results.csv")
-
-
-#rf model full results
-rf_fit %>% 
-  predict(housing_sales) %>% 
+geo_id_rmse <- bag_fit %>%
+  predict(housing_sales) %>%
   bind_cols(housing_sales) %>% 
-  write_csv("output/rf_full_model_results.csv")
+  mutate(model = "bagged tree") %>% 
+  mutate(geo_id = fct_lump_min(geo_id, 500, other_level = "Other")) %>% 
+  group_by(geo_id) %>% 
+  rsq(truth = sale_price_adj, estimate = 10^.pred) %>% 
+  ungroup() %>% 
+  left_join(housing_sales %>% 
+              count(geo_id, sort = T), by = "geo_id")
 
+geo_id_rmse %>% 
+  ggplot(aes(n, .estimate)) +
+  geom_point()
+
+bagged_rsq_chart <- geo_id_rmse %>% 
+  mutate(geo_id = fct_reorder(geo_id, .estimate)) %>% 
+  ggplot(aes(.estimate, geo_id)) +
+  geom_point() +
+  labs(title = "R-squared by geo_id",
+       subtitle = 'geo_id with < 500 lumped into "Other"',
+       x = "R-squared")
+
+bagged_rsq_chart %>% 
+  ggsave(filename = "output/bagged_rsq_chart.png",
+         width = 8, height = 12)
 
 #bag model full results
 bag_fit %>% 

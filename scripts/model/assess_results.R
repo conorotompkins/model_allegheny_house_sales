@@ -23,7 +23,7 @@ test_data  <- testing(data_split)
 
 lm_fit <- read_rds("data/lm_model_fit.rds")
 rf_fit <- read_rds("data/rf_model_fit.rds")
-bag_fit <- read_rds("data/bag_model_fit.rds")
+bag_fit <- read_rds("data/bag_model_fit_v.02.rds")
 
 lm_fit %>% 
   pull_workflow_fit() %>% 
@@ -53,30 +53,6 @@ rf_fit %>%
 bag_fit
 
 #compare predictions against training data across models
-test_predictions_scatter <- lm_fit %>%
-  predict(test_data) %>%
-  bind_cols(test_data) %>% 
-  mutate(model = "lm") %>% 
-  bind_rows(rf_fit %>%
-              predict(test_data) %>%
-              bind_cols(test_data) %>% 
-              mutate(model = "random forest")) %>% 
-  bind_rows(bag_fit %>%
-              predict(test_data) %>%
-              bind_cols(test_data) %>% 
-              mutate(model = "bagged tree")) %>% 
-  ggplot(aes(log10(sale_price_adj), .pred)) +
-  geom_density_2d_filled() +
-  geom_abline(color = "white", lty = 2) +
-  coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
-  facet_wrap(~model, ncol = 1) +
-  labs(title = "Test Data")
-
-ggsave(test_predictions_scatter, 
-       filename = "output/test_predictions_scatter.png",
-       width = 12,
-       height = 12)
-
 test_predictions_scatter_bagged <- bag_fit %>%
   predict(test_data) %>%
   bind_cols(test_data) %>% 
@@ -93,18 +69,6 @@ test_predictions_scatter_bagged %>%
          width = 12,
          height = 12)
 
-#predict lm against test data
-lm_test_res <- lm_fit %>% 
-  predict(test_data) %>% 
-  bind_cols(test_data) %>% 
-  mutate(.pred_dollar = 10^.pred)
-
-#predict rf against test data
-rf_test_res <- rf_fit %>% 
-  predict(test_data) %>% 
-  bind_cols(test_data) %>% 
-  mutate(.pred_dollar = 10^.pred)
-
 #predict bag against test data
 bag_test_res <- bag_fit %>% 
   predict(test_data) %>% 
@@ -113,28 +77,10 @@ bag_test_res <- bag_fit %>%
 
 model_metrics <- metric_set(rmse, rsq, mape)
 
-test_metrics <- tibble(model_name = c("lm", "random forest", "bagged tree"),
-                        dataset = "test",
-                        model_res = list(lm_test_res, rf_test_res, bag_test_res)) %>%
-  mutate(metrics = map(model_res, ~metrics(.x, truth = sale_price_adj, estimate = .pred_dollar))) %>% 
-  unnest(metrics) %>% 
-  select(-model_res)
+test_metrics <- model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 test_metrics %>% 
   write_csv("output/test_metrics.csv")
-
-test_metric_graph <- test_metrics %>% 
-  select(model_name, .metric, .estimate) %>% 
-  pivot_wider(names_from = .metric, values_from = .estimate) %>% 
-  ggplot(aes(rmse, rsq)) +
-  geom_label(aes(label = model_name)) +
-  scale_x_continuous(label = scales::dollar)
-
-ggsave(test_metric_graph, filename = "output/test_metric_graph.png")
-
-model_metrics(lm_test_res, truth = sale_price_adj, estimate = .pred_dollar)
-model_metrics(rf_test_res, truth = sale_price_adj, estimate = .pred_dollar)
-model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
 
 #eda results
 lm_rmse_chart <- lm_fit %>%

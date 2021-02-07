@@ -51,12 +51,17 @@ lm_res <- lm_wflow %>%
 toc()
 
 lm_metrics <- lm_res %>% 
-  select(.predictions) %>% 
+  select(id, .predictions) %>% 
   unnest(.predictions) %>% 
   mutate(.pred_dollar = 10^.pred) %>% 
+  group_by(id) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
-lm_metrics
+lm_metrics %>% 
+  ggplot(aes(x = "", y = .estimate)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_wrap(~.metric, scales = "free")
 
 #fit rf against resampled training data
 #13 minutes to run
@@ -67,12 +72,17 @@ rf_res <- rf_wflow %>%
 toc()
 
 rf_metrics <- rf_res %>% 
-  select(.predictions) %>% 
+  select(id, .predictions) %>% 
   unnest(.predictions) %>% 
   mutate(.pred_dollar = 10^.pred) %>% 
+  group_by(id) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
-rf_metrics
+rf_metrics %>% 
+  ggplot(aes(x = "", y = .estimate)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_wrap(~.metric, scales = "free")
 
 #fit bag against resampled training data
 #27 minutes to run
@@ -83,12 +93,17 @@ bag_res <- bag_wf %>%
 toc()
 
 bag_metrics <- bag_res %>% 
-  select(.predictions) %>% 
+  select(id, .predictions) %>% 
   unnest(.predictions) %>% 
   mutate(.pred_dollar = 10^.pred) %>% 
+  group_by(id) %>% 
   metrics(truth = sale_price_adj, estimate = .pred_dollar)
 
-bag_metrics
+bag_metrics %>% 
+  ggplot(aes(x = "", y = .estimate)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_wrap(~.metric, scales = "free")
 
 #compare predictions against training data across models
 
@@ -102,24 +117,29 @@ train_metrics %>%
   write_csv("output/train_metrics.csv")
 
 train_metric_graph <- train_metrics %>% 
-  select(model_name, .metric, .estimate) %>% 
+  select(model_name, id, .metric, .estimate) %>% 
   pivot_wider(names_from = .metric, values_from = .estimate) %>% 
-  ggplot(aes(rmse, rsq)) +
-  geom_label(aes(label = model_name))
+  mutate(model_name = fct_relevel(model_name, c("lm", "bagged tree", "random forest"))) %>% 
+  ggplot(aes(rmse, rsq, color = model_name)) +
+  geom_point(alpha = .8) +
+  scale_x_continuous(label = dollar) +
+  labs(title = "10-fold CV Train Set")
 
-ggsave(train_metric_graph, filename = "output/train_metric_graph.png")
+ggsave(train_metric_graph, filename = "output/train_metric_graph.png",
+       height = 8, width = 8)
 
 train_predictions_scatter <- collect_predictions(lm_res) %>% 
-  mutate(model = "lm") %>% 
+  mutate(model_name = "lm") %>% 
   bind_rows(collect_predictions(rf_res) %>% 
-              mutate(model = "random forest")) %>% 
+              mutate(model_name = "random forest")) %>% 
   bind_rows(collect_predictions(bag_res) %>% 
-              mutate(model = "bagged tree")) %>% 
+              mutate(model_name = "bagged tree")) %>% 
+  mutate(model_name = fct_relevel(model_name, c("lm", "bagged tree", "random forest"))) %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
-  facet_wrap(~model, ncol = 1)
+  facet_wrap(~model_name, ncol = 1)
 
 train_predictions_scatter %>% 
   ggsave(filename = "output/train_predictions_scatter.png",
@@ -127,12 +147,12 @@ train_predictions_scatter %>%
          height = 12)
 
 bagged_tree_train_scatter <- collect_predictions(bag_res) %>% 
-  mutate(model = "bagged tree") %>% 
+  mutate(model_name = "bagged tree") %>% 
   ggplot(aes(log10(sale_price_adj), .pred)) +
   geom_density_2d_filled() +
   geom_abline(color = "white", lty = 2) +
   coord_cartesian(xlim = c(4.5, 6), ylim = c(4.5, 6)) +
-  facet_wrap(~model, ncol = 1)
+  facet_wrap(~model_name, ncol = 1)
 
 bagged_tree_train_scatter %>% 
   ggsave(filename = "output/bagged_tree_train_scatter.png",
@@ -167,4 +187,4 @@ write_rds(lm_fit, "data/lm_model_fit.rds")
 write_rds(rf_fit, "data/rf_model_fit.rds")
 
 bag_fit %>% 
-  write_rds("data/bag_model_fit.rds")
+  write_rds("data/bag_model_fit_v.02.rds")
