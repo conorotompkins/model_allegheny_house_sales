@@ -1,0 +1,178 @@
+---
+title: "Review Model Results"
+author: "Conor Tompkins"
+date: "1/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(hrbrthemes)
+
+library(tidymodels)
+library(recipes)
+library(baguette)
+
+library(sf)
+library(leaflet)
+
+theme_set(theme_ipsum())
+
+model_fit <- read_rds("data/bag_model_fit.rds")
+
+model_results <- read_csv("output/bag_full_model_results.csv") %>% 
+  mutate(sale_price_adj = log10(sale_price_adj),
+         .resid = sale_price_adj - .pred)
+
+geo_ids <- st_read("data/ui_input_values/unified_geo_ids/unified_geo_ids.shp")
+```
+
+
+review model assessment data for train and test data
+```{r}
+
+```
+
+
+```{r}
+model_fit
+```
+
+```{r}
+glimpse(model_results)
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(.resid)) +
+  geom_density() +
+  geom_vline(xintercept = 0, lty = 2)
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(sale_price_adj, .pred)) +
+  geom_density2d_filled() +
+  geom_abline(lty = 2, color = "white")
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(sale_price_adj, .resid)) +
+  geom_density2d_filled() +
+  geom_hline(yintercept = 0, lty = 2, color = "white")
+```
+
+```{r}
+geo_id_median_resid <- model_results %>% 
+  group_by(geo_id) %>% 
+  summarize(median_resid = median(.resid))
+
+pal <- colorNumeric(
+  palette = "viridis",
+  domain = geo_id_median_resid$median_resid)
+
+geo_ids %>% 
+  left_join(geo_id_median_resid) %>% 
+  leaflet() %>% 
+  addProviderTiles(providers$Stamen.TonerLite,
+                       options = providerTileOptions(noWrap = TRUE,
+                                                     minZoom = 9, 
+                                                     #maxZoom = 8
+                       )) %>% 
+  addPolygons(popup = ~ str_c(geo_id, " ", "median residual: ", round(median_resid, 2), sep = ""),
+              fillColor = ~pal(median_resid),
+              fillOpacity = .7,
+              color = "black",
+              weight = 3) %>% 
+  addLegend("bottomright", pal = pal, values = ~median_resid,
+    title = "Median of model residual",
+    opacity = 1)
+```
+
+```{r fig.height=12}
+model_results %>% 
+  mutate(geo_id = fct_reorder(geo_id, .resid, .fun = median)) %>% 
+  ggplot(aes(.resid, geo_id)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_vline(xintercept = 0, lty = 2, color = "red")
+```
+
+```{r}
+model_results %>% 
+  mutate(style_desc = fct_reorder(style_desc, .resid, .fun = median)) %>% 
+  ggplot(aes(.resid, style_desc)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_vline(xintercept = 0, lty = 2, color = "red")
+```
+
+```{r}
+model_results %>% 
+  mutate(grade_desc = fct_reorder(grade_desc, .resid, .fun = median)) %>% 
+  ggplot(aes(.resid, grade_desc)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_vline(xintercept = 0, lty = 2, color = "red")
+```
+
+```{r}
+model_results %>% 
+  mutate(condition_desc = fct_reorder(condition_desc, .resid, .fun = median)) %>% 
+  ggplot(aes(.resid, condition_desc)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_vline(xintercept = 0, lty = 2, color = "red")
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(finished_living_area_zscore, .resid)) +
+  geom_density_2d_filled() +
+  geom_hline(yintercept = 0, lty = 2, color = "white") +
+  coord_cartesian(xlim = c(0, 5))
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(lot_area_zscore, .resid)) +
+  geom_density_2d_filled() +
+  geom_hline(yintercept = 0, lty = 2, color = "white") +
+  coord_cartesian(xlim = c(0, 1))
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(house_age_at_sale, .resid)) +
+  geom_density_2d_filled() +
+  geom_hline(yintercept = 0, lty = 2, color = "white") +
+  coord_cartesian(xlim = c(0, 150))
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(.resid, bedrooms, group = bedrooms)) +
+  geom_boxplot(outlier.alpha = .01) +
+  geom_vline(xintercept = 0, lty = 2, color = "red") +
+  scale_y_continuous(breaks = c(0:15))
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(.resid, fullbaths, group = fullbaths)) +
+  geom_boxplot(outlier.alpha = .01) +
+  geom_vline(xintercept = 0, lty = 2, color = "red") +
+  scale_y_continuous(breaks = c(0:12))
+```
+
+```{r}
+model_results %>% 
+  ggplot(aes(.resid, halfbaths, group = halfbaths)) +
+  geom_boxplot(outlier.alpha = .01) +
+  geom_vline(xintercept = 0, lty = 2, color = "red") +
+  scale_y_continuous(breaks = c(0:8))
+```
