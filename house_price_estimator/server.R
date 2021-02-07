@@ -10,14 +10,14 @@ library(sf)
 library(baguette)
 library(recipes)
 
-model_fit <- read_rds("bag_model_fit.rds")
+model_fit <- read_rds("bag_model_fit_v.02.rds")
 
 geo_id_style_desc <- read_csv("geo_id_style_desc.csv")
 
 geo_id_shapes <- st_read("unified_geo_ids/unified_geo_ids.shp")
 
-lot_area_summary <- read_csv("lot_area_summary.csv")
-finished_living_area_summary <- read_csv("finished_living_area_summary.csv")
+#lot_area_summary <- read_csv("house_price_estimator_test/lot_area_summary.csv")
+#finished_living_area_summary <- read_csv("house_price_estimator_test/finished_living_area_summary.csv")
 
 server <- function(input, output) {
   
@@ -27,7 +27,9 @@ server <- function(input, output) {
     req(selected_geo_id())
     
     tibble(par_id = "test",
-           house_age_at_sale = 2020 - input$year_blt_choice,
+           house_age_at_sale = 2021 - input$year_blt_choice,
+           sale_year = 2021,
+           sale_month = input$sale_month_choice,
            lot_area = input$lot_area_choice,
            finished_living_area = input$finished_living_area_choice,
            bedrooms = input$bedrooms_choice,
@@ -37,13 +39,15 @@ server <- function(input, output) {
            style_desc = input$style_desc_choice,
            grade_desc = input$grade_desc_choice,
            condition_desc = input$condition_desc_choice,
+           heat_type = input$heat_type_choice,
+           ac_flag = as.logical(input$ac_flag_choice),
            longitude = 1,
-           latitude = 1) %>% 
-      left_join(finished_living_area_summary) %>% 
-      left_join(lot_area_summary) %>% 
-      mutate(finished_living_area_zscore = (finished_living_area - finished_living_area_mean) / finished_living_area_sd,
-             lot_area_zscore = (lot_area - lot_area_mean) / lot_area_sd) %>% 
-      select(-c(matches("mean$|sd$"), lot_area, finished_living_area))
+           latitude = 1) #%>% 
+      # left_join(finished_living_area_summary) %>% 
+      # left_join(lot_area_summary) %>% 
+      # mutate(finished_living_area_zscore = (finished_living_area - finished_living_area_mean) / finished_living_area_sd,
+      #        lot_area_zscore = (lot_area - lot_area_mean) / lot_area_sd) %>% 
+      # select(-c(matches("mean$|sd$"), lot_area, finished_living_area))
     
   })
   
@@ -93,7 +97,11 @@ server <- function(input, output) {
          str_c("Bedrooms:", input$bedrooms_choice, sep = " "),
          str_c("Full Bathrooms:", input$fullbaths_choice, sep = " "),
          str_c("Half Bathrooms:", input$halfbaths_choice, sep = " "),
-         str_c("Year built:", input$year_blt_choice, sep = " ")) %>% 
+         str_c("Year Built:", input$year_blt_choice, sep = " "),
+         str_c("Heat Source:", input$heat_type_choice, sep = " "),
+         str_c("Air Conditioning:", input$ac_flag_choice, sep = " "),
+         str_c("Sale Month:", input$sale_month_choice, sep = " ")
+         ) %>% 
       glue::glue_collapse(sep = "\n")
   })
   
@@ -200,7 +208,5 @@ server <- function(input, output) {
   output$credits_1 <- renderText("Dashboard created by Conor Tompkins with R + Leaflet")
   output$credits_2 <- renderText("Parcel assessment data sourced from Allegheny County and the WPRDC")
   output$website <- renderText("https://ctompkins.netlify.app/")
-  
-  
   
 }
