@@ -1,0 +1,419 @@
+---
+title: "Assessment EDA"
+author: "Conor Tompkins"
+date: "1/26/2021"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+The purpose of this document is to perform EDA on the `clean_assessments.csv` data to identify patterns in the data that will inform a model of sale price.
+
+```{r}
+library(tidyverse)
+library(lubridate)
+
+library(sf)
+library(leaflet)
+
+library(skimr)
+library(hrbrthemes)
+library(janitor)
+library(scales)
+
+options(scipen = 999, digits = 4)
+
+theme_set(theme_ipsum())
+
+assessments_valid <- read_csv("data/clean_assessment_data.csv") %>% 
+  mutate(sale_month = factor(sale_month, levels = month.abb))
+
+geo_ids <- st_read("data/ui_input_values/unified_geo_ids/unified_geo_ids.shp")
+```
+
+### Get an idea of the data
+
+```{r}
+glimpse(assessments_valid)
+```
+
+```{r}
+skim(assessments_valid)
+```
+### Sales Price
+
+Inflation-adjusted sales price (`sale_price_adj`) is normally distributed on the log10() scale, as expected.
+```{r}
+assessments_valid %>% 
+  ggplot(aes(sale_price_adj)) +
+  geom_density() +
+  scale_x_log10(labels = dollar)
+```
+
+
+Adjusting for inflation (`sale_price_adj` is 2019 dollars) removes a lot of the drift over time.
+```{r}
+assessments_valid %>%
+  select(sale_year, sale_price, sale_price_adj) %>% 
+  pivot_longer(cols = contains("sale_price")) %>% 
+  ggplot(aes(sale_year, value, color = name)) +
+  geom_smooth() +
+  scale_y_continuous(labels = dollar)
+```
+
+```{r}
+assessments_valid %>% 
+  mutate(sale_month = fct_rev(sale_month)) %>% 
+  add_count(sale_month) %>% 
+  ggplot(aes(sale_price_adj, sale_month, group = sale_month, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10() +
+  coord_cartesian(xlim = c(10^4, 10^6)) +
+  scale_fill_viridis_c()
+```
+
+### Location
+
+The location of the house (`geo_id`) has a big impact on `sale_price_adj`.
+```{r}
+geo_id_median_price <- assessments_valid %>% 
+  group_by(geo_id) %>% 
+  summarize(median_price = median(sale_price_adj))
+
+pal <- colorNumeric(
+  palette = "viridis",
+  domain = geo_id_median_price$median_price)
+
+geo_ids %>% 
+  left_join(geo_id_median_price) %>% 
+  leaflet() %>% 
+  addProviderTiles(providers$Stamen.TonerLite,
+                       options = providerTileOptions(noWrap = TRUE,
+                                                     minZoom = 9, 
+                                                     #maxZoom = 8
+                       )) %>% 
+  addPolygons(popup = ~ str_c(geo_id, " ", "median price: ", dollar(median_price), sep = ""),
+              fillColor = ~pal(median_price),
+              fillOpacity = .7,
+              color = "black",
+              weight = 3) %>% 
+  addLegend("bottomright", pal = pal, values = ~median_price,
+    title = "Median sales price",
+    labFormat = labelFormat(prefix = "$"),
+    opacity = 1)
+```
+
+```{r fig.height=16}
+assessments_valid %>%
+  add_count(geo_id) %>% 
+  mutate(geo_id = fct_reorder(geo_id, sale_price_adj, .fun = median)) %>% 
+  ggplot(aes(sale_price_adj, geo_id, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+### House Characteristics
+
+The age of the house at time of sale has a negative relationship with sale price, but is heteroskedastic. This indicates that some houses retain their value better over time.
+```{r}
+assessments_valid %>% 
+  ggplot(aes(house_age_at_sale, sale_price_adj)) +
+  geom_density_2d_filled() +
+  scale_y_log10(labels = dollar)
+```
+
+#### Lot Area
+
+There is not an obvious relationship between `lot_area` and `sale_price_adj.`
+```{r}
+assessments_valid %>% 
+  ggplot(aes(lot_area, sale_price_adj)) +
+  geom_density_2d_filled() +
+  scale_y_log10(labels = dollar) +
+  coord_cartesian(xlim = c(0, 50000))
+```
+
+But, `lot_area` varies drastically across `geo_id`, so there might still be a useful feature to be engineered.
+```{r fig.height=16}
+assessments_valid %>% 
+  mutate(geo_id = fct_reorder(geo_id, lot_area, .fun = median)) %>% 
+  ggplot(aes(lot_area, geo_id)) +
+  geom_boxplot(outlier.alpha = 0) +
+  coord_cartesian(xlim = c(0, 40000))
+```
+
+`lot_area` also varies across `style_desc`.
+```{r fig.height=14}
+assessments_valid %>% 
+  mutate(style_desc = fct_reorder(style_desc, lot_area, .fun = median)) %>% 
+  ggplot(aes(lot_area, style_desc)) +
+  geom_boxplot(outlier.alpha = 0) +
+  coord_cartesian(xlim = c(0, 10^5))
+```
+
+#### Finished Living Area
+
+`finished_living_area` will be a useful variable.
+```{r}
+assessments_valid %>% 
+  ggplot(aes(finished_living_area, sale_price_adj)) +
+  geom_density_2d_filled() +
+  scale_y_log10(labels = dollar) +
+  coord_cartesian(xlim = c(0, 5000))
+```
+
+`finished_living_area` also varies across `style_desc`.
+```{r fig.height=14}
+assessments_valid %>% 
+  mutate(style_desc = fct_reorder(style_desc, finished_living_area, .fun = median)) %>% 
+  ggplot(aes(finished_living_area, style_desc)) +
+  geom_boxplot(outlier.alpha = 0) +
+  coord_cartesian(xlim = c(0, 10^4))
+```
+
+`finished_living_area` also varies across `geo_id`, but not as drastically.
+```{r fig.height=16}
+assessments_valid %>% 
+  mutate(geo_id = fct_reorder(geo_id, finished_living_area, .fun = median)) %>% 
+  ggplot(aes(finished_living_area, geo_id)) +
+  geom_boxplot(outlier.alpha = 0) +
+  coord_cartesian(xlim = c(0, 10000))
+```
+
+#### Grade
+
+`grade_desc` has a clear relationship with `sale_price_adj`.
+```{r}
+assessments_valid %>% 
+  mutate(grade_desc = fct_reorder(grade_desc, sale_price_adj, median)) %>% 
+  add_count(grade_desc) %>% 
+  ggplot(aes(sale_price_adj, grade_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(labels = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### CDU
+
+```{r}
+assessments_valid %>% 
+  mutate(cdu_desc = fct_reorder(cdu_desc, sale_price_adj, .fun = median)) %>% 
+  add_count(cdu_desc) %>% 
+  ggplot(aes(sale_price_adj, cdu_desc,  fill = n)) +
+    geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### Condition
+
+`condition_desc` also has a relationship, but some of the levels can probably be collapsed.
+```{r}
+assessments_valid %>% 
+  mutate(condition_desc = fct_reorder(condition_desc, sale_price_adj, median)) %>% 
+  add_count(condition_desc) %>% 
+  ggplot(aes(sale_price_adj, condition_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(labels = dollar) +
+  scale_fill_viridis_c()
+```
+
+There are 4 main types of houses, with a lot of low-n types that can be collapsed.
+```{r fig.height=12}
+assessments_valid %>% 
+  count(style_desc) %>% 
+  mutate(style_desc = fct_reorder(style_desc, n, .fun = max)) %>% 
+  ggplot(aes(n, style_desc)) +
+  geom_col()
+```
+
+There is some time-series pattern in when different types of houses were created.
+```{r}
+assessments_valid %>% 
+  add_count(style_desc) %>% 
+  filter(n > 5000) %>% 
+  mutate(style_desc = fct_reorder(style_desc, n, .fun = "max", .desc = T)) %>% 
+  ggplot(aes(year_blt, fill = style_desc)) +
+  geom_histogram(binwdidth = 30) +
+  guides(fill = FALSE) +
+  facet_wrap(~style_desc, scales = "free_y")
+```
+
+#### Bathrooms
+
+Most homes have between 1 and 2 full and half bathrooms.
+```{r}
+assessments_valid %>% 
+  count(fullbaths, halfbaths) %>% 
+  ggplot(aes(fullbaths, halfbaths, fill = n)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  scale_x_continuous(breaks = c(0:12),
+                     expand = c(0,0)) +
+  scale_y_continuous(breaks = c(0:12),
+                     expand = c(0,0)) +
+  coord_equal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+```
+
+`fullbaths` and `sale_price_adj` are positively related.
+```{r}
+assessments_valid %>% 
+  ggplot(aes(sale_price_adj, fullbaths, group = fullbaths)) +
+  geom_boxplot(outlier.alpha = 0) +
+  scale_x_log10(label = dollar) +
+  scale_y_continuous(breaks = c(0:12))
+```
+
+There appear to be diminishing returns on the number of half bathrooms.
+```{r}
+assessments_valid %>% 
+  ggplot(aes(sale_price_adj, halfbaths, group = halfbaths)) +
+  geom_boxplot(outlier.alpha = 0) +
+  scale_x_log10(label = dollar) +
+  scale_y_continuous(breaks = c(0:9))
+```
+
+#### Heating and cooling
+
+Need to split these out to heat_type and ac_flag.
+```{r}
+assessments_valid %>% 
+  mutate(heatingcooling_desc = fct_reorder(heatingcooling_desc, sale_price_adj, .fun = median)) %>% 
+  add_count(heatingcooling_desc) %>% 
+  ggplot(aes(sale_price_adj, heatingcooling_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+Impute missing based on mode for `geo_id` and `style_desc`.
+```{r}
+assessments_valid %>% 
+  mutate(heat_type = fct_reorder(heat_type, sale_price_adj, .fun = median)) %>% 
+  add_count(heat_type) %>% 
+  ggplot(aes(sale_price_adj, heat_type, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+Impute missing based on mode for `geo_id` and `style_desc.`
+```{r}
+assessments_valid %>% 
+  mutate(ac_flag = as.character(ac_flag)) %>% 
+  mutate(ac_flag = fct_reorder(ac_flag, sale_price_adj, .fun = median)) %>% 
+  add_count(ac_flag) %>% 
+  ggplot(aes(sale_price_adj, ac_flag, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### Exterior
+
+Impute missing based on mode for `geo_id` and `style_desc.`
+```{r}
+assessments_valid %>% 
+  mutate(extfinish_desc = fct_reorder(extfinish_desc, sale_price_adj, .fun = median)) %>% 
+  add_count(extfinish_desc) %>% 
+  ggplot(aes(sale_price_adj, extfinish_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### Roof
+
+Impute missing based on mode for `geo_id` and `style_desc.`
+```{r}
+assessments_valid %>% 
+  mutate(roof_desc = fct_reorder(roof_desc, sale_price_adj, .fun = median)) %>% 
+  add_count(roof_desc) %>% 
+  ggplot(aes(sale_price_adj, roof_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+
+#### Basement
+
+Impute missing based on mode for `geo_id` and `style_desc.`
+```{r}
+assessments_valid %>% 
+  mutate(basement_desc = fct_reorder(basement_desc, sale_price_adj, .fun = median)) %>% 
+  add_count(basement_desc) %>% 
+  ggplot(aes(sale_price_adj, basement_desc, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### Basement garage
+
+Impute missing based on mode for `geo_id` and `style_desc.`
+```{r}
+assessments_valid %>% 
+  select(sale_price_adj, bsmtgarage) %>% 
+  mutate(bsmtgarage = as.character(bsmtgarage),
+         bsmtgarage = fct_explicit_na(bsmtgarage),
+         bsmtgarage = fct_reorder(bsmtgarage, sale_price_adj, .fun = median)) %>% 
+  add_count(bsmtgarage) %>% 
+  ggplot(aes(sale_price_adj, bsmtgarage, group = bsmtgarage, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+#### Fireplaces
+
+Positive relationship between number of fireplaces and sale price, but most houses have 1 or 2. Consider changing to lgl `fireplace_flag` column where it checks `fireplaces` >= 1.
+```{r}
+assessments_valid %>% 
+  add_count(fireplaces) %>% 
+  ggplot(aes(sale_price_adj, fireplaces, group = fireplaces, fill = n)) +
+  geom_boxplot(outlier.alpha = 0,
+               color = "grey") +
+  scale_x_log10(label = dollar) +
+  scale_fill_viridis_c()
+```
+
+### Identify UI cutoffs
+
+```{r}
+assessments_valid %>% 
+  ggplot(aes(lot_area)) +
+  geom_density() +
+  geom_vline(xintercept = 40000) +
+  scale_x_log10()
+```
+
+```{r}
+assessments_valid %>% 
+  ggplot(aes(finished_living_area)) +
+  geom_density() +
+  scale_x_log10() +
+  geom_vline(xintercept = 10000)
+```
