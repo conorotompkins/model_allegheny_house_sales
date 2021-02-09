@@ -90,17 +90,6 @@ server <- function(input, output, session) {
     
   })
   
-  plot_parameters_reactive <- reactive({
-    representative_sample_reactive() %>%
-      pull(sale_price_adj) %>%
-      hist(breaks = 30) %>% 
-      .$counts %>% 
-      enframe() %>%
-      summarize(max_count = max(value)) %>%
-      pull(max_count)
-    
-  })
-  
   output$txtout <- renderText({
     list(str_c("Area:", selected_geo_id(), sep = " "), 
          str_c("Grade:", input$grade_desc_choice, sep = " "), 
@@ -136,9 +125,11 @@ server <- function(input, output, session) {
   
   output$model_output_graph <- renderPlot({
     
+    binwidth_calc <- IQR(representative_sample_reactive()$sale_price_adj) / 10
+    
     representative_sample_reactive() %>%
       ggplot(aes(x = sale_price_adj)) +
-      geom_histogram(fill = "grey", color = "black", binwidth = 50000) +
+      geom_histogram(fill = "grey", color = "black", binwidth = binwidth_calc) +
       # annotate(geom = "rect",
       #          xmin = predictions_reactive()$.pred_lower, xmax = predictions_reactive()$.pred_upper,
       #          ymin = 0, ymax = Inf, fill = "#FCCF02", alpha = .7) +
@@ -147,7 +138,6 @@ server <- function(input, output, session) {
                  size = 2) +
       scale_x_continuous(labels = scales::dollar_format()) +
       scale_y_comma() +
-      #coord_cartesian(ylim = c(0, plot_parameters_reactive() * 1.4)) +
       labs(title = str_c(nrow(representative_sample_reactive()) %>% comma(), "sales of",
                          distinct(representative_sample_reactive())$style_desc, "homes in",
                          distinct(representative_sample_reactive())$geo_id,
@@ -156,7 +146,7 @@ server <- function(input, output, session) {
            y = "Count of similar homes") +
       theme_ipsum(base_size = 20) +
       theme(panel.background = element_rect(fill = "black"),
-            axis.title.x = element_text(size = 18),
+            axis.title.x = element_text(size = 18, hjust = .5),
             axis.title.y = element_text(size = 18))
     
   })
