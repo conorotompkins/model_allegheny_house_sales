@@ -10,7 +10,7 @@ housing_sales <- read_csv("data/clean_housing_sales.csv")
 
 bag_fit <- read_rds("data/bag_model_fit_v.02.rds")
 
-geo_id_rmse <- bag_fit %>%
+geo_id_rsq <- bag_fit %>%
   predict(housing_sales) %>%
   bind_cols(housing_sales) %>% 
   mutate(model = "bagged tree") %>% 
@@ -21,11 +21,11 @@ geo_id_rmse <- bag_fit %>%
   left_join(housing_sales %>% 
               count(geo_id, sort = T), by = "geo_id")
 
-geo_id_rmse %>% 
+geo_id_rsq %>% 
   ggplot(aes(n, .estimate)) +
   geom_point()
 
-bagged_rsq_chart <- geo_id_rmse %>% 
+bagged_rsq_chart <- geo_id_rsq %>% 
   mutate(geo_id = fct_reorder(geo_id, .estimate)) %>% 
   ggplot(aes(.estimate, geo_id)) +
   geom_point() +
