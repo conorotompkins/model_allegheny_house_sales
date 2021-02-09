@@ -76,17 +76,19 @@ server <- function(input, output, session) {
     
     plotly_graph <- style_desc_bar_graph_data_reactive() %>% 
       count(style_desc, sort = T) %>% 
-      slice(1:10) %>% 
+      mutate(style_desc = fct_lump_n(style_desc, n = 5, w = n, other_level = "Other")) %>% 
       mutate(style_desc = fct_reorder(style_desc, n)) %>% 
       ggplot(aes(n, style_desc)) +
       geom_col() +
       scale_x_comma() +
-      labs(title = str_c("Top 10 house styles in", selected_geo_id(), sep = " "),
-           x = "Count",
+      labs(title = str_c("Top house styles in", selected_geo_id(), sep = " "),
+           x = "Count of sales",
            y = NULL) +
-      theme_ipsum(base_size = 20)
+      theme_ipsum(base_size = 20) +
+      theme(axis.title.x = element_text(size = 18, hjust = .5),
+            axis.title.y = element_text(size = 20))
     
-    ggplotly(plotly_graph)
+    ggplotly(plotly_graph, height = 400)
     
   })
   
@@ -95,15 +97,16 @@ server <- function(input, output, session) {
          str_c("Grade:", input$grade_desc_choice, sep = " "), 
          str_c("Condition:", input$condition_desc_choice, sep = " "),
          str_c("Style:", input$style_desc_choice, sep = " "),
-         str_c("Lot area:", comma(input$lot_area_choice), sep = " "),
-         str_c("Finished living area:", comma(input$finished_living_area_choice), sep = " "),
+         str_c("Lot area:", comma(input$lot_area_choice), "sq. ft.", sep = " "),
+         str_c("Finished living area:", comma(input$finished_living_area_choice), "sq. ft.", sep = " "),
          str_c("Bedrooms:", input$bedrooms_choice, sep = " "),
          str_c("Full Bathrooms:", input$fullbaths_choice, sep = " "),
          str_c("Half Bathrooms:", input$halfbaths_choice, sep = " "),
          str_c("Year Built:", input$year_blt_choice, sep = " "),
          str_c("Heat Source:", input$heat_type_choice, sep = " "),
          str_c("Air Conditioning:", input$ac_flag_choice, sep = " "),
-         str_c("Sale Month:", input$sale_month_choice, sep = " ")
+         str_c("Sale Month:", input$sale_month_choice, sep = " "),
+         str_c("Predicted price:", dollar(predictions_reactive()$.pred), sep = " ")
     ) %>% 
       glue::glue_collapse(sep = "\n")
   })
@@ -142,12 +145,12 @@ server <- function(input, output, session) {
                          distinct(representative_sample_reactive())$style_desc, "homes in",
                          distinct(representative_sample_reactive())$geo_id,
                          sep = " "),
-           x = "Sale Price",
+           x = "Actual Sale Price",
            y = "Count of similar homes") +
-      theme_ipsum(base_size = 20) +
+      theme_ipsum(base_size = 24) +
       theme(panel.background = element_rect(fill = "black"),
-            axis.title.x = element_text(size = 18, hjust = .5),
-            axis.title.y = element_text(size = 18))
+            axis.title.x = element_text(size = 20, hjust = .5),
+            axis.title.y = element_text(size = 20))
     
   })
   
@@ -162,7 +165,7 @@ server <- function(input, output, session) {
                                                      minZoom = 9, 
                                                      #maxZoom = 8
                        )) %>% 
-      setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 9) %>% 
+      setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 10) %>% 
       setMaxBounds(lng1 = -79.5, lng2 = -80.5, lat1 = 40.1, lat2 = 40.7) %>% 
       addPolygons(layerId = ~geo_id,
                   fillColor = "#FCCF02",
@@ -177,12 +180,12 @@ server <- function(input, output, session) {
   
   #update style_desc_choice input list
   observeEvent(selected_geo_id(), {
-
+    
     req(selected_geo_id())
     updated_choices <- style_desc_bar_graph_data_reactive() %>%
       count(style_desc, sort = T) %>%
       pull(style_desc)
-
+    
     updateSelectInput(session,
                       inputId = "style_desc_choice",
                       choices = updated_choices)
