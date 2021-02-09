@@ -23,21 +23,41 @@ grade_desc_distinct <- read_csv("house_price_estimator_test/grade_desc_distinct.
 
 condition_desc_distinct <- read_csv("house_price_estimator_test/condition_desc_distinct.csv")
 
-# Define UI
 ui <- fluidPage(theme = shinytheme("cerulean"),
                 title = "Allegheny County Home Sale Price Estimator",
                 
                 titlePanel(title = "Allegheny County Home Sale Price Estimator"),
                 
                 fluidRow(
-                  #tabPanel("Inputs", # sidebarPanel
-                  column(3, #column 1
-                         
-                         # selectInput(inputId = "school_desc_choice",
-                         #             label = "School district",
-                         #             choices = pull(school_desc_distinct, school_desc),
-                         #             multiple = FALSE,
-                         #             selectize = TRUE),
+                  
+                  column(width = 6,
+                         "Leaflet map",
+                         textOutput("leaflet_title"), #investigate height and width arguments
+                         leafletOutput("geo_id_map")),
+                  
+                  column(width = 6,
+                         "Top style_desc graph",
+                         plotlyOutput("style_desc_bar_graph"))
+                ),
+                
+                fluidRow(
+                  
+                  column(width = 9,
+                         "Prediction histogram",
+                         plotOutput("model_output_graph", height = "800px")),
+                  
+                  column(width = 3,
+                         "Output table",
+                         verbatimTextOutput("txtout")
+                         #tableOutput("model_output_table")
+                  )
+                  
+                ),
+                
+                fluidRow(
+                  
+                  column(width = 2,
+                         "Input column 1",
                          selectInput(inputId = "style_desc_choice", 
                                      label = "Style",
                                      choices = pull(style_desc_distinct, style_desc),
@@ -52,7 +72,26 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      label = "Condition",
                                      choices = pull(condition_desc_distinct, condition_desc),
                                      multiple = FALSE,
-                                     selected = "Average"),
+                                     selected = "Average")),
+                  column(width = 3,
+                         "Input column 2",
+                         sliderInput(inputId = "bedrooms_choice",
+                                     label = "Bedrooms",
+                                     min = 1,
+                                     max = 6,
+                                     value = 1),
+                         sliderInput(inputId = "fullbaths_choice",
+                                     label = "Full bathrooms",
+                                     min = 1,
+                                     max = 4,
+                                     value = 1),
+                         sliderInput(inputId = "halfbaths_choice",
+                                     label = "Half bathrooms",
+                                     min = 0,
+                                     max = 4,
+                                     value = 0)),
+                  column(width = 3,
+                         "Input column 3",
                          sliderInput(inputId = "lot_area_choice",
                                      label = "Lot Area (sq. ft)",
                                      #min = pull(lot_area_range_min, lot_area),
@@ -69,27 +108,14 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      max = 10000,
                                      value = 2000,
                                      step = 100),
-                         sliderInput(inputId = "bedrooms_choice",
-                                     label = "Bedrooms",
-                                     min = 1,
-                                     max = 6,
-                                     value = 1),
-                         sliderInput(inputId = "fullbaths_choice",
-                                     label = "Full bathrooms",
-                                     min = 1,
-                                     max = 4,
-                                     value = 1),
-                         sliderInput(inputId = "halfbaths_choice",
-                                     label = "Half bathrooms",
-                                     min = 0,
-                                     max = 4,
-                                     value = 0),
                          sliderInput(inputId = "year_blt_choice",
                                      label = "Year house was built",
                                      min = 1870,
                                      max = 2020,
                                      value = 1948,
-                                     sep = ""),
+                                     sep = "")),
+                  column(width = 2,
+                         "Input column 4",
                          selectInput(inputId = "heat_type_choice",
                                      label = "Heat Source",
                                      choices = c("Central Heat", "Other", "None"),
@@ -102,20 +128,6 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                      label = "Month of Sale",
                                      choices = month.abb,
                                      selected = lubridate::month(Sys.Date(), label = T),
-                                     multiple = FALSE),
-                         verbatimTextOutput("txtout")
-                  ), #column 1
-                  column(6,
-                         plotlyOutput("style_desc_bar_graph"),#investigate height and width arguments#investigate height and width arguments
-                         ),
-                  column(9, # column 2
-                         textOutput("leaflet_title"), #investigate height and width arguments
-                         leafletOutput("geo_id_map"),
-                         plotOutput("model_output_graph"),
-                         tableOutput("model_output_table")
-                  ), #column 2
-                ),  # fluidRow
-                textOutput("credits_1"),
-                textOutput("credits_2"),
-                textOutput("website")
-) # fluidPage
+                                     multiple = FALSE))
+                )
+)
