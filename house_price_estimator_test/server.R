@@ -168,10 +168,10 @@ server <- function(input, output, session) {
       setView(lng = -80.01181092430839, lat = 40.44170119122286, zoom = 10) %>% 
       setMaxBounds(lng1 = -79.5, lng2 = -80.5, lat1 = 40.1, lat2 = 40.7) %>% 
       addPolygons(layerId = ~geo_id,
-                  fillColor = "#FCCF02",
+                  fillColor = "#000000",
                   fillOpacity = .7,
                   stroke = TRUE,
-                  color = "black",
+                  color = "#FCCF02",
                   weight = 1)
   })
   
@@ -200,7 +200,10 @@ server <- function(input, output, session) {
     leafletProxy("geo_id_map", data = filter(geo_id_shapes, geo_id == input$geo_id_map_shape_click$id)) %>%
       clearGroup("highlight_shape") %>% 
       clearGroup("popup") %>% 
-      addPolygons(group = "highlight_shape") %>% 
+      addPolygons(group = "highlight_shape",
+                  fillColor = "#FCCF02",
+                  fillOpacity = 1,
+                  color = "#FCCF02") %>% 
       addPopups(popup = ~geo_id,
                 group = "popup",
                 lng = ~lng,
