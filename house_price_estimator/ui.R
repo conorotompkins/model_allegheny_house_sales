@@ -17,10 +17,10 @@ library(recipes)
 #https://towardsdatascience.com/build-your-first-shiny-web-app-in-r-72f9538f9868
 #https://shiny.rstudio.com/tutorial/
 
-style_desc_distinct <- read_csv("house_price_estimator/style_desc_distinct.csv")
+style_desc_distinct <- read_csv("style_desc_distinct.csv")
 
-grade_desc_distinct <- read_csv("house_price_estimator/grade_desc_distinct.csv")
-condition_desc_distinct <- read_csv("house_price_estimator/condition_desc_distinct.csv")
+grade_desc_distinct <- read_csv("grade_desc_distinct.csv")
+condition_desc_distinct <- read_csv("condition_desc_distinct.csv")
 
 ui <- fluidPage(theme = shinytheme("cerulean"),
                 title = "Allegheny County Home Sale Price Estimator",
@@ -32,18 +32,18 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   column(width = 6,
                          #"Leaflet map",
                          textOutput("leaflet_title"), #investigate height and width arguments
-                         leafletOutput("geo_id_map", height = 300)),
+                         leafletOutput("geo_id_map")),
                   
                   column(width = 4, offset = 2,
                          #"Top style_desc graph",
-                         plotOutput("style_desc_bar_graph", height = 300))
+                         plotOutput("style_desc_bar_graph", height = 400))
                 ),
                 
                 fluidRow(
                   
                   column(width = 8,
                          #"Prediction histogram",
-                         plotOutput("model_output_graph", height = "400px")),
+                         plotOutput("model_output_graph", height = "500px")),
                   
                   column(width = 4,
                          #"Output table",

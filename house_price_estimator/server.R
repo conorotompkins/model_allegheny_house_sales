@@ -12,11 +12,11 @@ library(sf)
 library(baguette)
 library(recipes)
 
-model_fit <- read_rds("house_price_estimator/bag_model_fit_v.03.rds")
+model_fit <- read_rds("bag_model_fit_v.03.rds")
 
-geo_id_style_desc <- read_csv("house_price_estimator/geo_id_style_desc.csv")
+geo_id_style_desc <- read_csv("geo_id_style_desc.csv")
 
-geo_id_shapes <- st_read("house_price_estimator/unified_geo_ids/unified_geo_ids.shp")
+geo_id_shapes <- st_read("unified_geo_ids/unified_geo_ids.shp")
 
 server <- function(input, output, session) {
   
