@@ -20,7 +20,6 @@ library(recipes)
 style_desc_distinct <- read_csv("house_price_estimator_test/style_desc_distinct.csv")
 
 grade_desc_distinct <- read_csv("house_price_estimator_test/grade_desc_distinct.csv")
-
 condition_desc_distinct <- read_csv("house_price_estimator_test/condition_desc_distinct.csv")
 
 ui <- fluidPage(theme = shinytheme("cerulean"),
@@ -33,18 +32,18 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   column(width = 6,
                          "Leaflet map",
                          textOutput("leaflet_title"), #investigate height and width arguments
-                         leafletOutput("geo_id_map")),
+                         leafletOutput("geo_id_map", height = 300)),
                   
                   column(width = 6,
                          "Top style_desc graph",
-                         plotlyOutput("style_desc_bar_graph"))
+                         plotOutput("style_desc_bar_graph", height = 300))
                 ),
                 
                 fluidRow(
                   
                   column(width = 9,
                          "Prediction histogram",
-                         plotOutput("model_output_graph", height = "800px")),
+                         plotOutput("model_output_graph", height = "500px")),
                   
                   column(width = 3,
                          "Output table",
