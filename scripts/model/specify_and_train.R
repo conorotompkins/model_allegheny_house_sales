@@ -187,4 +187,4 @@ write_rds(lm_fit, "data/lm_model_fit.rds")
 write_rds(rf_fit, "data/rf_model_fit.rds")
 
 bag_fit %>% 
-  write_rds("data/bag_model_fit_v.02.rds")
+  write_rds("data/bag_model_fit_v.03.rds")
