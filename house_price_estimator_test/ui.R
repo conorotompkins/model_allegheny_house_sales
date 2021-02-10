@@ -34,18 +34,18 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                          textOutput("leaflet_title"), #investigate height and width arguments
                          leafletOutput("geo_id_map", height = 300)),
                   
-                  column(width = 6,
+                  column(width = 4, offset = 2,
                          "Top style_desc graph",
                          plotOutput("style_desc_bar_graph", height = 300))
                 ),
                 
                 fluidRow(
                   
-                  column(width = 9,
+                  column(width = 8,
                          "Prediction histogram",
-                         plotOutput("model_output_graph", height = "500px")),
+                         plotOutput("model_output_graph", height = "400px")),
                   
-                  column(width = 3,
+                  column(width = 4,
                          "Output table",
                          verbatimTextOutput("txtout")
                          #tableOutput("model_output_table")
