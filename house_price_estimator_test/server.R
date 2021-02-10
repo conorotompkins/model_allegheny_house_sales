@@ -95,9 +95,9 @@ server <- function(input, output, session) {
   
   output$txtout <- renderText({
     list(str_c("Area:", selected_geo_id(), sep = " "), 
+         str_c("Style:", input$style_desc_choice, sep = " "),
          str_c("Grade:", input$grade_desc_choice, sep = " "), 
          str_c("Condition:", input$condition_desc_choice, sep = " "),
-         str_c("Style:", input$style_desc_choice, sep = " "),
          str_c("Lot area:", comma(input$lot_area_choice), "sq. ft.", sep = " "),
          str_c("Finished living area:", comma(input$finished_living_area_choice), "sq. ft.", sep = " "),
          str_c("Bedrooms:", input$bedrooms_choice, sep = " "),
