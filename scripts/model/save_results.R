@@ -8,7 +8,7 @@ theme_set(theme_ipsum())
 
 housing_sales <- read_csv("data/clean_housing_sales.csv")
 
-bag_fit <- read_rds("data/bag_model_fit_v.02.rds")
+bag_fit <- read_rds("data/bag_model_fit_v.03.rds")
 
 geo_id_rsq <- bag_fit %>%
   predict(housing_sales) %>%
