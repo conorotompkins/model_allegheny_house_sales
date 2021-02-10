@@ -39,7 +39,7 @@ glimpse(housing_sales)
 # This enables the analysis to be reproducible when random numbers are used 
 set.seed(1234)
 # Put 3/4 of the data into the training set 
-data_split <- initial_split(housing_sales, prop = 3/4)
+data_split <- initial_split(housing_sales, prop = 3/4, strata = sale_price_adj)
 
 # Create data frames for the two sets:
 train_data <- training(data_split)
