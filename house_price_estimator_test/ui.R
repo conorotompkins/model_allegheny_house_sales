@@ -32,25 +32,22 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   column(width = 6,
                          "Leaflet map",
                          textOutput("leaflet_title"), #investigate height and width arguments
-                         leafletOutput("geo_id_map", height = 300)),
+                         leafletOutput("geo_id_map")),
                   
                   column(width = 4, offset = 2,
                          "Top style_desc graph",
-                         plotOutput("style_desc_bar_graph", height = 300))
+                         plotOutput("style_desc_bar_graph", height = 400))
                 ),
                 
                 fluidRow(
                   
-                  column(width = 8,
-                         "Prediction histogram",
-                         plotOutput("model_output_graph", height = "400px")),
-                  
-                  column(width = 4,
-                         "Output table",
-                         verbatimTextOutput("txtout")
-                         #tableOutput("model_output_table")
+                  mainPanel(
+                    
+                    # Output: Tabset w/ plot, summary, and table ----
+                    tabsetPanel(type = "tabs",
+                                tabPanel("Prediction histogram", plotOutput("model_output_graph", height = "500px")),
+                                tabPanel("Summary", verbatimTextOutput("txtout")))
                   )
-                  
                 ),
                 
                 fluidRow(
