@@ -12,7 +12,7 @@ library(sf)
 library(baguette)
 library(recipes)
 
-model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.02.rds")
+model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.03.rds")
 
 geo_id_style_desc <- read_csv("house_price_estimator_test/geo_id_style_desc.csv")
 
@@ -70,11 +70,12 @@ server <- function(input, output, session) {
     
   })
   
-  output$style_desc_bar_graph <- renderPlotly({
+  output$style_desc_bar_graph <- renderPlot({
     
     req(style_desc_bar_graph_data_reactive())
     
-    plotly_graph <- style_desc_bar_graph_data_reactive() %>% 
+    #plotly_graph <- 
+    style_desc_bar_graph_data_reactive() %>% 
       count(style_desc, sort = T) %>% 
       mutate(style_desc = fct_lump_n(style_desc, n = 5, w = n, other_level = "Other")) %>% 
       mutate(style_desc = fct_reorder(style_desc, n)) %>% 
@@ -88,7 +89,7 @@ server <- function(input, output, session) {
       theme(axis.title.x = element_text(size = 18, hjust = .5),
             axis.title.y = element_text(size = 20))
     
-    ggplotly(plotly_graph, height = 400)
+    #ggplotly(plotly_graph)
     
   })
   
