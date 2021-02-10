@@ -17,11 +17,10 @@ library(recipes)
 #https://towardsdatascience.com/build-your-first-shiny-web-app-in-r-72f9538f9868
 #https://shiny.rstudio.com/tutorial/
 
-style_desc_distinct <- read_csv("style_desc_distinct.csv")
+style_desc_distinct <- read_csv("house_price_estimator/style_desc_distinct.csv")
 
-grade_desc_distinct <- read_csv("grade_desc_distinct.csv")
-
-condition_desc_distinct <- read_csv("condition_desc_distinct.csv")
+grade_desc_distinct <- read_csv("house_price_estimator/grade_desc_distinct.csv")
+condition_desc_distinct <- read_csv("house_price_estimator/condition_desc_distinct.csv")
 
 ui <- fluidPage(theme = shinytheme("cerulean"),
                 title = "Allegheny County Home Sale Price Estimator",
@@ -33,22 +32,23 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   column(width = 6,
                          #"Leaflet map",
                          textOutput("leaflet_title"), #investigate height and width arguments
-                         leafletOutput("geo_id_map")),
+                         leafletOutput("geo_id_map", height = 300)),
                   
-                  column(width = 6,
+                  column(width = 4, offset = 2,
                          #"Top style_desc graph",
-                         plotlyOutput("style_desc_bar_graph"))
+                         plotOutput("style_desc_bar_graph", height = 300))
                 ),
                 
                 fluidRow(
                   
-                  column(width = 9,
+                  column(width = 8,
                          #"Prediction histogram",
-                         plotOutput("model_output_graph", height = "800px")),
+                         plotOutput("model_output_graph", height = "400px")),
                   
-                  column(width = 3,
+                  column(width = 4,
                          #"Output table",
                          verbatimTextOutput("txtout")
+                         #tableOutput("model_output_table")
                   )
                   
                 ),
