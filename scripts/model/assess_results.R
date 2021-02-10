@@ -7,9 +7,6 @@ library(butcher)
 
 theme_set(theme_ipsum())
 
-assessments_valid <- read_csv("data/clean_assessment_data.csv")
-parcel_geo <- read_csv("data/clean_parcel_geo.csv")
-
 housing_sales <- read_csv("data/clean_housing_sales.csv")
 
 set.seed(1234)
@@ -23,7 +20,7 @@ test_data  <- testing(data_split)
 
 lm_fit <- read_rds("data/lm_model_fit.rds")
 rf_fit <- read_rds("data/rf_model_fit.rds")
-bag_fit <- read_rds("data/bag_model_fit_v.02.rds")
+bag_fit <- read_rds("data/bag_model_fit_v.03.rds")
 
 lm_fit %>% 
   pull_workflow_fit() %>% 
@@ -32,8 +29,6 @@ lm_fit %>%
   mutate(avg_price = 10^estimate) %>% 
   pull(avg_price) %>% 
   scales::dollar()
-
-rf_fit
 
 lm_fit %>%
   pull_workflow_fit() %>%
@@ -68,19 +63,6 @@ test_predictions_scatter_bagged %>%
   ggsave(filename = "output/test_predictions_scatter_bagged.png",
          width = 12,
          height = 12)
-
-#predict bag against test data
-bag_test_res <- bag_fit %>% 
-  predict(test_data) %>% 
-  bind_cols(test_data) %>% 
-  mutate(.pred_dollar = 10^.pred)
-
-model_metrics <- metric_set(rmse, rsq, mape)
-
-test_metrics <- model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
-
-test_metrics %>% 
-  write_csv("output/test_metrics.csv")
 
 #eda results
 lm_rmse_chart <- lm_fit %>%
@@ -161,7 +143,7 @@ bagged_tree_vi_chart <- bag_fit %>%
 
 bagged_tree_vi_chart %>% 
   ggsave(filename = "output/bagged_tree_vi_chart.png", 
-         width = 8,
+         width = 12,
          height = 20)
 
 bag_fit %>% 
@@ -169,3 +151,16 @@ bag_fit %>%
   butcher() %>% 
   .$imp %>% 
   write_csv("output/bagged_tree_variable_importance.csv")
+
+#predict bag against test data
+bag_test_res <- bag_fit %>% 
+  predict(test_data) %>% 
+  bind_cols(test_data) %>% 
+  mutate(.pred_dollar = 10^.pred)
+
+model_metrics <- metric_set(rmse, rsq, mape)
+
+test_metrics <- model_metrics(bag_test_res, truth = sale_price_adj, estimate = .pred_dollar)
+
+test_metrics %>% 
+  write_csv("output/test_metrics.csv")
