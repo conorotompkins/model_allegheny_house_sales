@@ -14,6 +14,8 @@ library(leaflet)
 library(sf)
 library(vroom)
 
+theme_set(theme_ipsum(base_size = 24))
+
 
 model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.03.rds")
 
@@ -90,7 +92,7 @@ server <- function(input, output, session) {
       labs(title = str_c("Top house styles in", selected_geo_id(), sep = " "),
            x = "Count of sales",
            y = NULL) +
-      theme_ipsum(base_size = 20) +
+      #theme_ipsum(base_size = 20) +
       theme(axis.title.x = element_text(size = 18, hjust = .5),
             axis.title.y = element_text(size = 20))
     
@@ -153,7 +155,7 @@ server <- function(input, output, session) {
                          sep = " "),
            x = "Actual Sale Price",
            y = "Count of similar homes") +
-      theme_ipsum(base_size = 24) +
+      #theme_ipsum(base_size = 24) +
       theme(panel.background = element_rect(fill = "black"),
             axis.title.x = element_text(size = 20, hjust = .5),
             axis.title.y = element_text(size = 20))
@@ -215,6 +217,42 @@ server <- function(input, output, session) {
                 lng = ~lng,
                 lat = ~lat)
   }) #observer
+  
+  output$grade_condition_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      count(grade_desc, condition_desc, sort = T) %>% 
+      complete(grade_desc, condition_desc, fill = list(n = 0)) %>% 
+      ggplot(aes(grade_desc, condition_desc, fill = n)) +
+      geom_tile() +
+      scale_fill_viridis_c() +
+      coord_equal()
+    
+  })
+  
+  output$bedrooms_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      count(bedrooms, sort = T) %>% 
+      ggplot(aes(bedrooms, n)) +
+      geom_col() +
+      scale_x_continuous(breaks = representative_sample_reactive() %>% distinct(bedrooms) %>% pull(bedrooms))
+    
+  })
+  
+  output$bathrooms_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      count(fullbaths, halfbaths, sort = T) %>% 
+      complete(fullbaths, halfbaths, fill = list(n = 0)) %>% 
+      ggplot(aes(fullbaths, halfbaths, fill = n)) +
+      geom_tile() +
+      scale_fill_viridis_c() +
+      coord_equal() +
+      scale_x_continuous(breaks = representative_sample_reactive() %>% distinct(fullbaths) %>% pull(fullbaths)) +
+      scale_y_continuous(breaks = representative_sample_reactive() %>% distinct(halfbaths) %>% pull(halfbaths))
+    
+  })
   
   output$credits_1 <- renderText("Dashboard created by Conor Tompkins with R + Leaflet")
   output$credits_2 <- renderText("Parcel assessment data sourced from Allegheny County and the WPRDC")

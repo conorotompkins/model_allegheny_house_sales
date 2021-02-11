@@ -47,8 +47,12 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                     
                     # Output: Tabset w/ plot, summary, and table ----
                     tabsetPanel(type = "tabs",
-                                tabPanel("Prediction histogram", plotOutput("model_output_graph", height = "500px")),
-                                tabPanel("Summary", verbatimTextOutput("txtout")))
+                                tabPanel("Prediction histogram", plotOutput("model_output_graph")),
+                                tabPanel("Summary", verbatimTextOutput("txtout")),
+                                tabPanel("Grade and Condition", plotOutput("grade_condition_graph")),
+                                tabPanel("Bedrooms", plotOutput("bedrooms_graph")),
+                                tabPanel("Bathrooms", plotOutput("bathrooms_graph"))
+                    )
                   )
                 ),
                 
