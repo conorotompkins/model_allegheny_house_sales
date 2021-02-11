@@ -25,11 +25,11 @@ skim(assessments_valid)
 housing_sales <- assessments_valid %>% 
   left_join(parcel_geo, by = c("par_id" = "pin")) %>% 
   select(-sale_price) %>% 
-  select(everything(), longitude, latitude) %>% 
+  select(everything(), longitude, latitude, year_blt) %>% 
   select(par_id, sale_price_adj, house_age_at_sale, sale_year, sale_month, lot_area, 
          finished_living_area, bedrooms, fullbaths, halfbaths, geo_id, 
          style_desc, grade_desc, condition_desc, ac_flag, heat_type,
-         longitude, latitude)
+         longitude, latitude, year_blt)
 
 housing_sales %>% 
   write_csv("data/clean_housing_sales.csv")
@@ -53,7 +53,7 @@ model_recipe <- recipe(sale_price_adj ~ .,
                          ungroup()
 ) %>% 
   update_role(par_id, new_role = "id") %>% 
-  update_role(longitude, latitude, new_role = "geo") %>% 
+  update_role(longitude, latitude, year_blt, new_role = "metadata") %>% 
   step_log(sale_price_adj, base = 10, skip = TRUE) %>% 
   step_mutate(condition_desc = as.character(condition_desc),
               grade_desc = as.character(grade_desc),
@@ -79,7 +79,7 @@ model_recipe <- recipe(sale_price_adj ~ .,
   step_relevel(sale_month, ref_level = "Jun") %>%
   step_relevel(ac_flag, ref_level = "TRUE") %>% 
   step_relevel(heat_type, ref_level = "Central Heat") %>% 
-  step_dummy(all_nominal(), -has_role(c("id", "geo")))
+  step_dummy(all_nominal(), -has_role(c("id", "metadata")))
 
 model_recipe %>% 
   prep() %>% 
