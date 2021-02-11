@@ -7,18 +7,20 @@ library(plotly)
 
 library(tidyverse)
 library(tidymodels)
+library(baguette)
+library(recipes)
+
 library(hrbrthemes)
 library(scales)
 library(leaflet)
 library(sf)
-library(baguette)
-library(recipes)
+library(vroom)
+
 
 #https://towardsdatascience.com/build-your-first-shiny-web-app-in-r-72f9538f9868
 #https://shiny.rstudio.com/tutorial/
 
 style_desc_distinct <- read_csv("house_price_estimator_test/style_desc_distinct.csv")
-
 grade_desc_distinct <- read_csv("house_price_estimator_test/grade_desc_distinct.csv")
 condition_desc_distinct <- read_csv("house_price_estimator_test/condition_desc_distinct.csv")
 
