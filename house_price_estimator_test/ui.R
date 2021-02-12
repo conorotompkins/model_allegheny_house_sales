@@ -51,7 +51,9 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                                 tabPanel("Summary", verbatimTextOutput("txtout")),
                                 tabPanel("Grade and Condition", plotOutput("grade_condition_graph")),
                                 tabPanel("Bedrooms", plotOutput("bedrooms_graph")),
-                                tabPanel("Bathrooms", plotOutput("bathrooms_graph"))
+                                tabPanel("Bathrooms", plotOutput("bathrooms_graph")),
+                                tabPanel("Lot and Finished Living Area", plotOutput("lot_area_finished_living_area_graph")),
+                                tabPanel("Year Built", plotOutput("year_blt_graph"))
                     )
                   )
                 ),

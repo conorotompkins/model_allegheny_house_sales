@@ -16,6 +16,8 @@ library(vroom)
 
 theme_set(theme_ipsum(base_size = 24))
 
+options(scipen = 999, digits = 2)
+
 
 model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.03.rds")
 
@@ -251,6 +253,27 @@ server <- function(input, output, session) {
       coord_equal() +
       scale_x_continuous(breaks = representative_sample_reactive() %>% distinct(fullbaths) %>% pull(fullbaths)) +
       scale_y_continuous(breaks = representative_sample_reactive() %>% distinct(halfbaths) %>% pull(halfbaths))
+    
+  })
+  
+  output$lot_area_finished_living_area_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      select(lot_area, finished_living_area) %>% 
+      pivot_longer(cols = everything(), names_to = "metric", values_to = "values") %>% 
+      ggplot(aes(values, fill = metric)) +
+      geom_density() +
+      facet_wrap(~metric, nrow = 2, scales = "free") +
+      scale_fill_viridis_d()
+    
+  })
+  
+  output$year_blt_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      select(year_blt) %>% 
+      ggplot(aes(year_blt)) +
+      geom_histogram(binwidth = 5)
     
   })
   
