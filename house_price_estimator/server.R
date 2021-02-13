@@ -5,16 +5,22 @@ library(plotly)
 
 library(tidyverse)
 library(tidymodels)
+library(baguette)
+library(recipes)
+
 library(hrbrthemes)
 library(scales)
 library(leaflet)
 library(sf)
-library(baguette)
-library(recipes)
+library(vroom)
+
+theme_set(theme_ipsum(base_size = 24))
+
+options(scipen = 999, digits = 2)
 
 model_fit <- read_rds("bag_model_fit_v.03.rds")
 
-geo_id_style_desc <- read_csv("geo_id_style_desc.csv")
+full_model_results <- vroom("trimmed_full_model_results.csv")
 
 geo_id_shapes <- st_read("unified_geo_ids/unified_geo_ids.shp")
 
@@ -58,14 +64,14 @@ server <- function(input, output, session) {
   
   representative_sample_reactive <- reactive({
     
-    geo_id_style_desc %>% 
+    full_model_results %>% 
       semi_join(predict_data_reactive(), by = c("geo_id", "style_desc"))
   })
   
   style_desc_bar_graph_data_reactive <- reactive({
     
     req(selected_geo_id())
-    geo_id_style_desc %>% 
+    full_model_results %>% 
       filter(geo_id == selected_geo_id())
     
   })
