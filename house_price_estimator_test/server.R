@@ -18,12 +18,9 @@ theme_set(theme_ipsum(base_size = 24))
 
 options(scipen = 999, digits = 2)
 
-
 model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.03.rds")
 
 full_model_results <- vroom("house_price_estimator_test/trimmed_full_model_results.csv")
-
-#geo_id_style_desc <- read_csv("house_price_estimator_test/geo_id_style_desc.csv")
 
 geo_id_shapes <- st_read("house_price_estimator_test/unified_geo_ids/unified_geo_ids.shp")
 
@@ -155,10 +152,12 @@ server <- function(input, output, session) {
                          distinct(representative_sample_reactive())$style_desc, "homes in",
                          distinct(representative_sample_reactive())$geo_id,
                          sep = " "),
+           subtitle = str_c("Prediction:", dollar(predictions_reactive()$.pred), sep = " "),
            x = "Actual Sale Price",
-           y = "Count of similar homes") +
+           y = "Sales of similar homes") +
       #theme_ipsum(base_size = 24) +
       theme(panel.background = element_rect(fill = "black"),
+            plot.subtitle = element_text(size = 22),
             axis.title.x = element_text(size = 20, hjust = .5),
             axis.title.y = element_text(size = 20))
     
