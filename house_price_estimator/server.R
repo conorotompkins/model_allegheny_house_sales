@@ -178,21 +178,7 @@ server <- function(input, output, session) {
   
   #capture click from leaflet map
   selected_geo_id <- reactive({input$geo_id_map_shape_click$id})
-  
-  #update style_desc_choice input list
-  observeEvent(selected_geo_id(), {
-    
-    req(selected_geo_id())
-    updated_choices <- style_desc_bar_graph_data_reactive() %>%
-      count(style_desc, sort = T) %>%
-      pull(style_desc)
-    
-    updateSelectInput(session,
-                      inputId = "style_desc_choice",
-                      choices = updated_choices)
-  })
-  
-  
+
   observe({ #observer
     
     req(selected_geo_id())
