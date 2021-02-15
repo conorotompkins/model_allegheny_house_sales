@@ -110,16 +110,17 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                     width = 10,
                     
                     fluidRow(#"leaflet map and house styles",
-                             textOutput("leaflet_title"), #investigate height and width arguments
-                             leafletOutput("geo_id_map")),
+                      textOutput("leaflet_title"), #investigate height and width arguments
+                      leafletOutput("geo_id_map", height = 200)),
                     
                     mainPanel(
                       
                       # Output: Tabset w/ plot, summary, and table ----
                       tabsetPanel(type = "tabs",
-                                  tabPanel("Prediction", plotOutput("model_output_graph")),
+                                  tabPanel("Prediction", plotOutput("model_output_graph", width = "800px")),
                                   tabPanel("Summary", verbatimTextOutput("txtout")),
-                                  tabPanel("Top house styles", plotOutput("style_desc_bar_graph"))
+                                  tabPanel("Top house styles", plotOutput("style_desc_bar_graph", width = "800px")),
+                                  tabPanel("Grade and Condition", plotOutput("grade_condition_graph", width = "800px" ))
                       )
                     )
                   )
