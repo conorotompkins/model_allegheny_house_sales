@@ -20,6 +20,10 @@ options(scipen = 999, digits = 2)
 
 model_fit <- read_rds("bag_model_fit_v.03.rds")
 
+style_desc_distinct <- read_csv("style_desc_distinct.csv")
+grade_desc_distinct <- read_csv("grade_desc_distinct.csv")
+condition_desc_distinct <- read_csv("condition_desc_distinct.csv")
+
 full_model_results <- vroom("trimmed_full_model_results.csv")
 
 geo_id_shapes <- st_read("unified_geo_ids/unified_geo_ids.shp")
@@ -152,10 +156,11 @@ server <- function(input, output, session) {
                          distinct(representative_sample_reactive())$style_desc, "homes in",
                          distinct(representative_sample_reactive())$geo_id,
                          sep = " "),
+           subtitle = str_c("Prediction:", dollar(predictions_reactive()$.pred), sep = " "),
            x = "Actual Sale Price",
-           y = "Count of similar homes") +
-      theme_ipsum(base_size = 24) +
+           y = "Sales of similar homes") +
       theme(panel.background = element_rect(fill = "black"),
+            plot.subtitle = element_text(size = 22),
             axis.title.x = element_text(size = 20, hjust = .5),
             axis.title.y = element_text(size = 20))
     
@@ -202,6 +207,33 @@ server <- function(input, output, session) {
                 lng = ~lng,
                 lat = ~lat)
   }) #observer
+  
+  output$grade_condition_graph <- renderPlot({
+    
+    representative_sample_reactive() %>% 
+      drop_na(grade_desc, condition_desc) %>% 
+      count(grade_desc, condition_desc, sort = T) %>% 
+      complete(grade_desc, condition_desc, fill = list(n = 0)) %>% 
+      mutate(grade_desc = fct_relevel(grade_desc, pull(grade_desc_distinct, grade_desc)),
+             condition_desc = fct_relevel(condition_desc, pull(condition_desc_distinct, condition_desc))) %>% 
+      mutate(grade_desc = fct_rev(grade_desc),
+             condition_desc = fct_rev(condition_desc)) %>% 
+      ggplot(aes(grade_desc, condition_desc, fill = n)) +
+      geom_tile() +
+      scale_fill_viridis_c(labels = comma) +
+      scale_x_discrete(labels = abbreviate) +
+      coord_fixed(.5) +
+      labs(title = str_c(nrow(representative_sample_reactive()) %>% comma(), "sales of",
+                         distinct(representative_sample_reactive())$style_desc, "homes in",
+                         distinct(representative_sample_reactive())$geo_id,
+                         sep = " "),
+           x = "Grade",
+           y = "Condition",
+           fill = "Sales") +
+      theme(axis.title.x = element_text(size = 20),
+            axis.title.y = element_text(size = 20))
+    
+  })
   
   output$credits_1 <- renderText("Dashboard created by Conor Tompkins with R + Leaflet")
   output$credits_2 <- renderText("Parcel assessment data sourced from Allegheny County and the WPRDC")
