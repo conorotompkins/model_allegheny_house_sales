@@ -20,6 +20,10 @@ options(scipen = 999, digits = 2)
 
 model_fit <- read_rds("house_price_estimator_test/bag_model_fit_v.03.rds")
 
+style_desc_distinct <- read_csv("house_price_estimator_test/style_desc_distinct.csv")
+grade_desc_distinct <- read_csv("house_price_estimator_test/grade_desc_distinct.csv")
+condition_desc_distinct <- read_csv("house_price_estimator_test/condition_desc_distinct.csv")
+
 full_model_results <- vroom("house_price_estimator_test/trimmed_full_model_results.csv")
 
 geo_id_shapes <- st_read("house_price_estimator_test/unified_geo_ids/unified_geo_ids.shp")
@@ -155,7 +159,6 @@ server <- function(input, output, session) {
            subtitle = str_c("Prediction:", dollar(predictions_reactive()$.pred), sep = " "),
            x = "Actual Sale Price",
            y = "Sales of similar homes") +
-      #theme_ipsum(base_size = 24) +
       theme(panel.background = element_rect(fill = "black"),
             plot.subtitle = element_text(size = 22),
             axis.title.x = element_text(size = 20, hjust = .5),
@@ -208,12 +211,27 @@ server <- function(input, output, session) {
   output$grade_condition_graph <- renderPlot({
     
     representative_sample_reactive() %>% 
+      drop_na(grade_desc, condition_desc) %>% 
       count(grade_desc, condition_desc, sort = T) %>% 
       complete(grade_desc, condition_desc, fill = list(n = 0)) %>% 
+      mutate(grade_desc = fct_relevel(grade_desc, pull(grade_desc_distinct, grade_desc)),
+             condition_desc = fct_relevel(condition_desc, pull(condition_desc_distinct, condition_desc))) %>% 
+      mutate(grade_desc = fct_rev(grade_desc),
+             condition_desc = fct_rev(condition_desc)) %>% 
       ggplot(aes(grade_desc, condition_desc, fill = n)) +
       geom_tile() +
-      scale_fill_viridis_c() +
-      coord_equal()
+      scale_fill_viridis_c(labels = comma) +
+      scale_x_discrete(labels = abbreviate) +
+      coord_fixed(.5) +
+      labs(title = str_c(nrow(representative_sample_reactive()) %>% comma(), "sales of",
+                         distinct(representative_sample_reactive())$style_desc, "homes in",
+                         distinct(representative_sample_reactive())$geo_id,
+                         sep = " "),
+           x = "Grade",
+           y = "Condition",
+           fill = "Sales") +
+      theme(axis.title.x = element_text(size = 20),
+            axis.title.y = element_text(size = 20))
     
   })
   
