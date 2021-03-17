@@ -30,6 +30,8 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                 
                 actionButton("panel_button", "Toggle Input Panel"),
                 
+                actionButton("map_button", "Toggle Map"),
+                
                 fluidPage(
                   
                   conditionalPanel(condition = "input.panel_button % 2 == 0",
@@ -108,10 +110,11 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   
                   column("main_graph_area", width = 10,
                          
-                         fluidRow("leaflet map and house styles",
-                                  textOutput("leaflet_title"), #investigate height and width arguments
-                                  leafletOutput("geo_id_map", height = 200)),
-                         
+                         conditionalPanel(condition = "input.map_button % 2 == 0",
+                                          fluidRow("leaflet map and house styles",
+                                                   textOutput("leaflet_title"), #investigate height and width arguments
+                                                   leafletOutput("geo_id_map", height = 350)),
+                         ),
                          mainPanel(
                            
                            # Output: Tabset w/ plot, summary, and table ----
